@@ -2,7 +2,7 @@ import { z } from "zod"
 import { canonicalUrlForId } from "@/lib/canonical"
 import { ID_PATTERN } from "@/lib/id"
 
-// The manifest — artifact.json (§3 of the standard): identity, lineage, and
+// The manifest — trove.json (§3 of the standard): identity, lineage, and
 // inventory. Per-file fields are the OCI content descriptor's required triple
 // (mediaType, digest, size) plus path, which OCI carries in an annotation.
 

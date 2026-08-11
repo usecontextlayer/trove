@@ -6,7 +6,7 @@ import { REMIX_MARKER_FILE } from "@/src/assemble"
 
 // Remixing (§9): fetch is where lineage is captured and inherited identity is
 // removed. parentDigest is computed AT FETCH TIME by hashing the parent's
-// artifact.json as fetched — the only moment the value is true — and written
+// trove.json as fetched — the only moment the value is true — and written
 // with parent into the local marker the publish step reads.
 
 export interface RemixMarker {
@@ -35,7 +35,7 @@ export function parseCanonicalUrl(registryUrl: string, from: string): string {
 	const id = from.startsWith(prefix) ? from.slice(prefix.length) : null
 	if (id === null || !ID_PATTERN.test(id)) {
 		throw new Error(
-			`--from takes the artifact's canonical URL (${registryUrl}/a/<id>), not a host URL. The canonical URL is in the artifact's own artifact.json.`,
+			`--from takes the artifact's canonical URL (${registryUrl}/a/<id>), not a host URL. The canonical URL is in the artifact's own trove.json.`,
 		)
 	}
 	return from
@@ -53,10 +53,10 @@ export async function remixArtifact(options: {
 
 	// Hash the manifest bytes exactly as fetched — this pins WHICH version was
 	// remixed, since artifacts are mutable and redeploy in place.
-	const manifestResponse = await fetch(`${canonicalUrl}/artifact.json`)
+	const manifestResponse = await fetch(`${canonicalUrl}/trove.json`)
 	if (!manifestResponse.ok) {
 		throw new Error(
-			`${canonicalUrl}/artifact.json answered ${manifestResponse.status} — not a readable artifact.`,
+			`${canonicalUrl}/trove.json answered ${manifestResponse.status} — not a readable artifact.`,
 		)
 	}
 	const manifestBytes = Buffer.from(await manifestResponse.arrayBuffer())
@@ -98,7 +98,7 @@ export async function remixArtifact(options: {
 		}
 	}
 
-	// The parent's artifact.json is never written — the manifest excludes
+	// The parent's trove.json is never written — the manifest excludes
 	// itself, so the copy is identity-free by construction except the marker.
 	const marker: RemixMarker = { parent: canonicalUrl, parentDigest }
 	writeFileSync(

@@ -14,7 +14,7 @@ const program = new Command()
 program
 	.command("publish")
 	.description(
-		"Publish a folder as an artifact: assemble (mandated block, artifact.json, headers), deploy to Cloudflare, verify it serves, register, and print the canonical URL. Anonymous deploys are 60-minute previews until claimed; set CLOUDFLARE_API_TOKEN to publish into your own account.",
+		"Publish a folder as an artifact: assemble (mandated block, trove.json, headers), deploy to Cloudflare, verify it serves, register, and print the canonical URL. Anonymous deploys are 60-minute previews until claimed; set CLOUDFLARE_API_TOKEN to publish into your own account.",
 	)
 	.argument("<folder>", "the folder to publish; must contain an AGENTS.md")
 	.action(async (folder: string) => {

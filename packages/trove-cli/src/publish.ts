@@ -5,7 +5,12 @@ import { mintId } from "@usecontextlayer/trove-standard"
 import { assembleArtifact } from "@/src/assemble"
 import { registerArtifact } from "@/src/registry"
 import { readRemixMarker } from "@/src/remix"
-import { COMPATIBILITY_DATE, deployAssembled, waitUntilServing } from "@/src/wrangler"
+import {
+	COMPATIBILITY_DATE,
+	deployAssembled,
+	detectCredentialState,
+	waitUntilServing,
+} from "@/src/wrangler"
 
 // Publish (§8): mint the id locally, assemble, deploy, verify, register, print.
 // Minting locally is what keeps this to one deploy and one registry call.
@@ -52,7 +57,9 @@ export async function publish(options: {
 		"note: local security scans are not wired yet (betterleaks, anti-trojan-source)",
 	)
 
-	const anonymous = process.env.CLOUDFLARE_API_TOKEN === undefined
+	// Ask wrangler itself — whoami honors both `wrangler login` OAuth state and
+	// CLOUDFLARE_API_TOKEN, so this catches every way a user can be logged in.
+	const anonymous = (await detectCredentialState()) === "anonymous"
 	const deployed = await deployAssembled({ anonymous, deployDir })
 	await waitUntilServing(deployed.hostUrl)
 

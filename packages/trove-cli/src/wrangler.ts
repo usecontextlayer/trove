@@ -23,6 +23,45 @@ export function wranglerBinPath(): string {
 	return path.join(path.dirname(packageJson), "bin", "wrangler.js")
 }
 
+export type CredentialState = "anonymous" | "authenticated"
+
+/**
+ * Classify `wrangler whoami` output. The markers are anchored to the pinned
+ * wrangler's own dist (4.120.1) plus a real capture: authenticated prints
+ * "You are logged in with an <authType>…"; a clean logged-out run prints
+ * "You are not authenticated. Please run `wrangler login`."; an EXPIRED OAuth
+ * token in a non-interactive shell exits 1 with "Not logged in. Your auth
+ * token has expired…" (captured — a third state the docs never name). Both
+ * not-logged-in shapes mean the anonymous path. Anything else is a loud error,
+ * never a silent fallback.
+ */
+export function parseWhoamiOutput(output: string, exitCode: number): CredentialState {
+	if (output.includes("You are logged in with an")) {
+		return "authenticated"
+	}
+	if (output.includes("You are not authenticated") || output.includes("Not logged in")) {
+		return "anonymous"
+	}
+	throw new Error(
+		`could not determine wrangler credential state (whoami exit ${exitCode}):\n${output}`,
+	)
+}
+
+/**
+ * Ask wrangler itself whether the user is authenticated — `whoami` honors both
+ * `wrangler login` OAuth state and CLOUDFLARE_API_TOKEN, so it subsumes any
+ * env-var sniffing. Runs against the user's REAL config (no isolation): the
+ * question is about their actual state.
+ */
+export async function detectCredentialState(): Promise<CredentialState> {
+	const result = await execa(process.execPath, [wranglerBinPath(), "whoami"], {
+		all: true,
+		env: { ...process.env, WRANGLER_SEND_METRICS: "false" },
+		reject: false,
+	})
+	return parseWhoamiOutput(result.all ?? "", result.exitCode ?? -1)
+}
+
 export interface DeployResult {
 	claim: { deadlineMinutes: number; url: string } | null
 	hostUrl: string

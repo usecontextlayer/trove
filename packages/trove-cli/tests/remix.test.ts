@@ -96,16 +96,16 @@ describe("remixArtifact", () => {
 		// Inherited identity is stripped: the data-trove attribute is cleared
 		// (the parent id lawfully remains in the block's TEXT until publish
 		// strips the remnant block — the round-trip test covers that) and the
-		// parent's artifact.json was never written.
+		// parent's trove.json was never written.
 		const html = readFileSync(path.join(destDir, "index.html"), "utf8")
 		expect(html).toContain('data-trove=""')
 		expect(html).not.toContain(`data-trove="${artifactId}"`)
-		expect(() => readFileSync(path.join(destDir, "artifact.json"))).toThrow()
+		expect(() => readFileSync(path.join(destDir, "trove.json"))).toThrow()
 
 		// The marker pins the parent version: parentDigest is the hash of the
 		// manifest bytes exactly as served.
 		const marker = readRemixMarker(destDir)
-		const servedManifest = readFileSync(path.join(assembledDir, "artifact.json"))
+		const servedManifest = readFileSync(path.join(assembledDir, "trove.json"))
 		expect(marker).toEqual({
 			parent: canonicalUrl,
 			parentDigest: `sha256:${createHash("sha256").update(servedManifest).digest("hex")}`,

@@ -143,7 +143,7 @@ describe("GET /a/<id> subtree", () => {
 		// §7: an agent handed only a canonical URL can perform every read the
 		// standard defines — the redirect must land on the real served bytes.
 		await registerFixture()
-		const redirect = await SELF.fetch(`${REGISTRY}/a/${fixtureId}/artifact.json`, {
+		const redirect = await SELF.fetch(`${REGISTRY}/a/${fixtureId}/trove.json`, {
 			redirect: "manual",
 		})
 		expect(redirect.status).toBe(302)

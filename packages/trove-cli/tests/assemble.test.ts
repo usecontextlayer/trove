@@ -38,14 +38,14 @@ describe("assembleArtifact", () => {
 		// The manifest round-trips through the standard's own schema.
 		expect(manifestSchema.parse(manifest).id).toBe(id)
 
-		// Membership rule: "/" listed (not /index.html); artifact.json and
+		// Membership rule: "/" listed (not /index.html); trove.json and
 		// _headers excluded; every listed digest matches the bytes on disk.
 		const paths = manifest.files.map((file) => file.path)
 		expect(paths).toContain("/")
 		expect(paths).toContain("/AGENTS.md")
 		expect(paths).toContain("/data.csv")
 		expect(paths).not.toContain("/index.html")
-		expect(paths).not.toContain("/artifact.json")
+		expect(paths).not.toContain("/trove.json")
 		expect(paths).not.toContain("/_headers")
 		for (const file of manifest.files) {
 			const onDisk = readFileSync(

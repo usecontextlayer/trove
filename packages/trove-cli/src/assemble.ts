@@ -19,7 +19,7 @@ import mime from "mime"
 
 // Assembly (§8 step 2): the creator's files, the mandated block injected into
 // index.html (generated when the creator did not author one), the generated
-// artifact.json, generated host headers. Pure file-level work — deploying and
+// trove.json, generated host headers. Pure file-level work — deploying and
 // registering live elsewhere.
 
 /** Lineage marker remix writes and publish reads; never artifact content. */
@@ -31,7 +31,7 @@ const EXCLUDED_ROOT_ENTRIES = new Set([
 	REMIX_MARKER_FILE,
 	".git",
 	"_headers",
-	"artifact.json",
+	"trove.json",
 ])
 const EXCLUDED_EVERYWHERE = new Set([".DS_Store"])
 
@@ -108,7 +108,7 @@ function generateIndexHtml(sourceDir: string, id: string): string {
 </head>
 <body>
 <h1>${title}</h1>
-<p>This is a Trove artifact — a set of files any AI agent can fetch, verify, and remix from this URL. Its manual is at <a href="/AGENTS.md">AGENTS.md</a> and its inventory at <a href="/artifact.json">artifact.json</a>.</p>
+<p>This is a Trove artifact — a set of files any AI agent can fetch, verify, and remix from this URL. Its manual is at <a href="/AGENTS.md">AGENTS.md</a> and its inventory at <a href="/trove.json">trove.json</a>.</p>
 ${renderMandatedBlock(id)}
 </body>
 </html>
@@ -151,7 +151,7 @@ export function assembleArtifact(options: AssembleOptions): ArtifactManifest {
 
 	// The manifest lists what returns 200 at the path that returns it: the index
 	// page as "/", never "/index.html" (the host 307s the latter), and neither
-	// artifact.json (it cannot carry its own digest) nor _headers (consumed by
+	// trove.json (it cannot carry its own digest) nor _headers (consumed by
 	// the host, not served).
 	const servedFiles = new Set(walkFiles(destDir))
 	servedFiles.delete("index.html")
@@ -187,7 +187,7 @@ export function assembleArtifact(options: AssembleOptions): ArtifactManifest {
 	})
 
 	writeFileSync(
-		path.join(destDir, "artifact.json"),
+		path.join(destDir, "trove.json"),
 		`${JSON.stringify(manifest, null, "\t")}\n`,
 	)
 	writeFileSync(path.join(destDir, "_headers"), "/*\n  X-Robots-Tag: noindex\n")

@@ -4,4 +4,4 @@
 // 200 directly.
 export const INDEX_PATH = "/"
 export const AGENTS_MD_PATH = "/AGENTS.md"
-export const MANIFEST_PATH = "/artifact.json"
+export const MANIFEST_PATH = "/trove.json"

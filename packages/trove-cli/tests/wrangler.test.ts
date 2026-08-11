@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import * as path from "node:path"
 import { describe, expect, it } from "vitest"
-import { isSettling404, parseDeployOutput } from "@/src/wrangler"
+import { isSettling404, parseDeployOutput, parseWhoamiOutput } from "@/src/wrangler"
 
 // The fixture is a REAL `wrangler deploy --temporary` capture (2026-08-10,
 // wrangler 4.120.1) — refreshing it means running a real anonymous deploy
@@ -36,6 +36,49 @@ describe("parseDeployOutput", () => {
 	it("throws loudly when no host URL is present", () => {
 		expect(() => parseDeployOutput("nothing useful here")).toThrow(
 			/no \*\.workers\.dev URL/,
+		)
+	})
+})
+
+describe("parseWhoamiOutput", () => {
+	// Real capture: an EXPIRED OAuth token in a non-interactive shell — a third
+	// credential state (neither cleanly logged out nor logged in), exit 1.
+	const expiredTokenOutput = readFileSync(
+		path.join(import.meta.dirname, "fixtures", "whoami-expired-token.txt"),
+		"utf8",
+	)
+
+	it("classifies an expired token as anonymous (real capture)", () => {
+		expect(parseWhoamiOutput(expiredTokenOutput, 1)).toBe("anonymous")
+	})
+
+	it("classifies a clean logged-out run as anonymous (marker from the pinned wrangler dist)", () => {
+		expect(
+			parseWhoamiOutput("You are not authenticated. Please run `wrangler login`.", 0),
+		).toBe("anonymous")
+	})
+
+	it("classifies a login as authenticated (template from the pinned wrangler dist)", () => {
+		expect(
+			parseWhoamiOutput(
+				"Getting User settings...\nYou are logged in with an OAuth Token, associated with the email dev@example.com.",
+				0,
+			),
+		).toBe("authenticated")
+	})
+
+	it("classifies an env-token login as authenticated", () => {
+		expect(
+			parseWhoamiOutput(
+				"You are logged in with an API Token. Unset the CLOUDFLARE_API_TOKEN in the environment to log in via OAuth.",
+				0,
+			),
+		).toBe("authenticated")
+	})
+
+	it("throws loudly on unrecognizable output instead of guessing", () => {
+		expect(() => parseWhoamiOutput("something entirely new", 7)).toThrow(
+			/could not determine wrangler credential state/,
 		)
 	})
 })

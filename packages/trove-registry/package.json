@@ -1,6 +1,7 @@
 {
 	"dependencies": {
 		"@usecontextlayer/trove-standard": "workspace:*",
+		"hono": "^4.13.1",
 		"kysely": "^0.29.5",
 		"zod": "^4.4.3"
 	},
