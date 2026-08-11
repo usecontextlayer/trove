@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"composite": true,
+		"paths": {
+			"@/*": ["./*"]
+		},
+		"types": ["node"]
+	},
+	"exclude": ["vitest.config.ts"],
+	"extends": "../../tsconfig.base.json",
+	"include": ["**/*.ts"],
+	"references": [
+		{
+			"path": "../trove-standard"
+		}
+	]
+}

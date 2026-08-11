@@ -1,0 +1,27 @@
+
+ ⛅️ wrangler 4.120.1
+[38;2;255;136;0m────────────────────[39m
+Continuing means you accept Cloudflare's Terms of Service (https://www.cloudflare.com/terms/) and Privacy Policy (https://www.cloudflare.com/privacypolicy/).
+Solving proof-of-work challenge…
+Temporary account ready:
+	Account: Even Boron (created)
+	Claim within: 60 minutes
+	Claim URL: https://dash.cloudflare.com/claim-preview?claimToken=TTe_B09ayVJXGk71817HbQq7DyI15dGr23id66R6HE8
+🌀 Building list of assets...
+✨ Read 5 files from the assets directory /Users/alizain/.claude/jobs/9fe0390a/tmp/trove-e2e/artifact
+🌀 Starting asset upload...
+🌀 Found 4 new or modified static assets to upload. Proceeding with upload...
++ /AGENTS.md
++ /index.html
++ /reading-list.md
++ /artifact.json
+Uploaded 1 of 4 assets
+Uploaded 3 of 4 assets
+Uploaded 4 of 4 assets
+✨ Success! Uploaded 4 files (0.99 sec)
+
+Total Upload: [32m0.37 KiB / gzip: 0.25 KiB[39m
+Uploaded trove-7g7hjdeb (3.35 sec)
+Deployed trove-7g7hjdeb triggers (0.53 sec)
+  https://trove-7g7hjdeb.even-boron.workers.dev
+Current Version ID: 72048718-8a31-460e-9a12-b36f3d8782b7

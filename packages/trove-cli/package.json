@@ -1,0 +1,32 @@
+{
+	"bin": {
+		"trove": "./dist/cli.mjs"
+	},
+	"dependencies": {
+		"wrangler": "4.120.1"
+	},
+	"devDependencies": {
+		"@usecontextlayer/trove-standard": "workspace:*",
+		"commander": "^15.0.0",
+		"execa": "^10.0.0",
+		"mime": "^4.1.0",
+		"vitest": "^4.1.10",
+		"zod": "^4.4.3"
+	},
+	"engines": {
+		"node": ">=24.0.0"
+	},
+	"files": [
+		"dist"
+	],
+	"name": "@usecontextlayer/trove",
+	"scripts": {
+		"build": "npx tsdown",
+		"clean": "rm -rf dist *.tsbuildinfo",
+		"dev:watch": "npx tsdown --watch",
+		"test": "npx vitest run --config vitest.config.ts",
+		"tsc": "npx tsc -b tsconfig.json"
+	},
+	"type": "module",
+	"version": "0.1.0"
+}
