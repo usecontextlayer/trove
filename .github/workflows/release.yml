@@ -33,7 +33,6 @@ jobs:
     name: Publish @usecontextlayer/trove to npm
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: release
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-workspace
@@ -57,24 +56,28 @@ jobs:
       - name: Assert clean working tree
         run: git diff --exit-code
 
-      - name: Pack and show what would ship
-        # `files: ["dist"]` means the tarball is the built CLI and nothing else.
-        # Printing the contents makes an accidental inclusion visible in the log
-        # rather than on the registry.
+      - name: Pack, and show exactly what would ship
+        # PACK WITH PNPM: it rewrites the `workspace:` protocol in the manifest
+        # to a real version, which npm would ship verbatim. `files: ["dist"]`
+        # keeps the tarball to the built CLI, its sourcemap, LICENSE and the
+        # manifest. Printing the contents puts an accidental inclusion in the
+        # log rather than on the registry, permanently.
         working-directory: packages/trove-cli
         run: |
-          pnpm pack --pack-destination /tmp
-          tar -tzf /tmp/*.tgz | sort
+          pnpm pack --pack-destination "$RUNNER_TEMP"
+          tarball="$(ls "$RUNNER_TEMP"/*.tgz)"
+          echo "TARBALL=$tarball" >> "$GITHUB_ENV"
+          tar -tzf "$tarball" | sort
 
       - name: Publish
+        # PUBLISH WITH NPM, and publish the tarball packed above rather than the
+        # working directory — so the artifact inspected in the previous step is
+        # byte-for-byte the artifact that reaches the registry. npm (not pnpm)
+        # owns --provenance, which needs the id-token permission granted above
+        # and the `repository` field in the manifest.
         if: ${{ github.event_name == 'push' || !inputs.dry-run }}
-        working-directory: packages/trove-cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "true"
         run: |
           npm config set //registry.npmjs.org/:_authToken "$NODE_AUTH_TOKEN"
-          # pnpm publish rewrites the `workspace:` protocol in the manifest to a
-          # real version; npm publish would ship it verbatim. --no-git-checks
-          # because the checkout is a detached tag, which pnpm otherwise rejects.
-          pnpm publish --access public --no-git-checks
+          npm publish "$TARBALL" --access public --provenance
