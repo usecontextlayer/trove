@@ -94,9 +94,11 @@ export async function deployAssembled(options: DeployOptions): Promise<DeployRes
 }
 
 /**
- * A settling 404 while the deploy propagates is distinguishable from a genuine
- * miss: text/plain content type and the 17-byte body "error code: 1042"
- * (measured). Propagation is per-asset and not atomic.
+ * The characteristic settling 404 while a deploy propagates: text/plain
+ * content type and the 17-byte body "error code: 1042" (measured). Diagnostic
+ * only — propagation also emits 404s WITHOUT this signature (measured: a
+ * healthy fresh deploy served signature-less 404s before settling to 200), so
+ * no 404 shape is proof of a broken deployment while the clock is running.
  */
 export function isSettling404(
 	status: number,
@@ -110,7 +112,11 @@ export function isSettling404(
 	)
 }
 
-/** Verify-and-retry before handing out a URL (§8 step 4). */
+/**
+ * Verify-and-retry before handing out a URL (§8 step 4): poll until 200 or
+ * timeout. A genuinely broken deployment fails loud at the timeout, with the
+ * last observed response attached.
+ */
 export async function waitUntilServing(
 	hostUrl: string,
 	options: { pollMs?: number; timeoutMs?: number } = {},
@@ -118,24 +124,17 @@ export async function waitUntilServing(
 	const pollMs = options.pollMs ?? 1000
 	const timeoutMs = options.timeoutMs ?? 60_000
 	const deadline = Date.now() + timeoutMs
-	let genuineMisses = 0
+	let last = "no response yet"
 	while (Date.now() < deadline) {
 		const response = await fetch(new URL("/", hostUrl))
 		if (response.ok) {
 			return
 		}
 		const body = await response.text()
-		if (isSettling404(response.status, response.headers.get("content-type"), body)) {
-			genuineMisses = 0
-		} else {
-			genuineMisses += 1
-			if (genuineMisses >= 3) {
-				throw new Error(
-					`${hostUrl} answers ${response.status} and it is not deploy propagation — the deployment is broken.`,
-				)
-			}
-		}
+		last = `${response.status} (${response.headers.get("content-type") ?? "no content type"}): ${body.slice(0, 80)}`
 		await new Promise((resolve) => setTimeout(resolve, pollMs))
 	}
-	throw new Error(`${hostUrl} did not start serving within ${timeoutMs}ms.`)
+	throw new Error(
+		`${hostUrl} did not start serving within ${timeoutMs}ms; last response: ${last}`,
+	)
 }
