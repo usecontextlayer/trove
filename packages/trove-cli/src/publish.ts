@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs"
+import { mkdtempSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { checkTrove, httpReader, mintId } from "@usecontextlayer/trove-standard"
@@ -7,10 +7,10 @@ import { localReader } from "@/src/local-reader"
 import { readRemixMarker } from "@/src/remix"
 import { describeFailures } from "@/src/report"
 import {
-	COMPATIBILITY_DATE,
 	deployAssembled,
 	detectCredentialState,
 	waitUntilServing,
+	writeWranglerConfig,
 } from "@/src/wrangler"
 
 // Publish (§8): mint the id locally, assemble, check locally, deploy, verify
@@ -85,22 +85,7 @@ export async function publish(options: { folder: string }): Promise<void> {
 	}
 	console.error("contract checks passed on the assembled trove")
 
-	// The deploy config sits OUTSIDE the assets directory — wrangler publishes
-	// its own scratch files, so the trove is always a subdirectory, never ".".
-	// The name derives from the id (DNS-label-safe); the compatibility date is a
-	// constant so two publishes of the same trove behave identically.
-	writeFileSync(
-		path.join(deployDir, "wrangler.jsonc"),
-		`${JSON.stringify(
-			{
-				assets: { directory: "./trove" },
-				compatibility_date: COMPATIBILITY_DATE,
-				name: `trove-${id.slice(0, 8)}`,
-			},
-			null,
-			"\t",
-		)}\n`,
-	)
+	writeWranglerConfig({ deployDir, id })
 
 	// §6.2's security scans (Betterleaks, anti-trojan-source) are not wired yet.
 	// Stated on every publish rather than silently skipped: certification must

@@ -1,3 +1,4 @@
+import { isUtf8 } from "node:buffer"
 import { createHash } from "node:crypto"
 import {
 	copyFileSync,
@@ -141,6 +142,67 @@ ${renderMandatedBlock(id)}
 `
 }
 
+/** One file as the host will serve it, before the manifest reduces it to a digest. */
+interface ServedFile {
+	content: Buffer
+	mediaType: string
+	path: string
+}
+
+/**
+ * The host headers the assembly generates (§5): unconditional noindex, and
+ * `charset=utf-8` on text types whose bytes ARE UTF-8.
+ *
+ * The charset is the fix for agent-facing mojibake. The host declares no encoding
+ * of its own (measured), and markdown has no in-band mechanism the way HTML has
+ * `<meta charset>` — so AGENTS.md served bare decodes as CP1252 and an em dash
+ * reaches the reader as "â€”".
+ *
+ * It is declared ONLY where it is true. A trove may serve text in any encoding,
+ * and a declared charset outranks both the bytes' own signals and, for HTML,
+ * `<meta charset>` — so declaring utf-8 over Latin-1 would corrupt the file while
+ * every check stayed green, which is the failure this change exists to remove,
+ * not to reintroduce. Text that is not UTF-8 keeps the host's default handling:
+ * exactly how it behaves today, neither fixed nor broken.
+ *
+ * Rules are keyed by EXTENSION, never by path: the host caps `_headers` at 100
+ * rules while a conformant trove may carry 1,000 files. So an extension earns its
+ * rule only when EVERY file carrying it is UTF-8 — one mixed extension withholds
+ * the rule from its siblings rather than mislabelling one of them. `/*.<ext>`
+ * matches at any depth (measured), and "/" needs a rule of its own because the
+ * index is served there rather than at /index.html.
+ */
+function renderHostHeaders(served: readonly ServedFile[]): string {
+	const rules = ["/*\n  X-Robots-Tag: noindex\n"]
+
+	const index = served.find((file) => file.path === "/")
+	if (index !== undefined && isUtf8(index.content)) {
+		rules.push(`/\n  Content-Type: ${index.mediaType}; charset=utf-8\n`)
+	}
+
+	const byExtension = new Map<string, { mediaType: string; utf8: boolean }>()
+	for (const file of served) {
+		const extension = path.extname(file.path).slice(1).toLowerCase()
+		if (extension === "" || !file.mediaType.startsWith("text/")) {
+			continue
+		}
+		const seen = byExtension.get(extension)
+		byExtension.set(extension, {
+			mediaType: file.mediaType,
+			utf8: (seen === undefined || seen.utf8) && isUtf8(file.content),
+		})
+	}
+	for (const [extension, entry] of [...byExtension].sort(([left], [right]) =>
+		left.localeCompare(right),
+	)) {
+		if (entry.utf8) {
+			rules.push(`/*.${extension}\n  Content-Type: ${entry.mediaType}; charset=utf-8\n`)
+		}
+	}
+
+	return rules.join("\n")
+}
+
 export function assembleTrove(options: AssembleOptions): TroveManifest {
 	const { destDir, id, parent, parentDigest, sourceDir } = options
 
@@ -151,7 +213,7 @@ export function assembleTrove(options: AssembleOptions): TroveManifest {
 	}
 	if (existsSync(path.join(sourceDir, "_headers"))) {
 		throw new Error(
-			`${sourceDir} contains a _headers file. Publishing generates the host headers (unconditional noindex); creator-authored _headers are not supported yet — remove it.`,
+			`${sourceDir} contains a _headers file. Publishing generates the host headers (unconditional noindex, plus charset=utf-8 on UTF-8 text types); creator-authored _headers are not supported yet — remove it.`,
 		)
 	}
 	if (existsSync(destDir) && readdirSync(destDir).length > 0) {
@@ -194,28 +256,35 @@ export function assembleTrove(options: AssembleOptions): TroveManifest {
 	// the host, not served).
 	const servedFiles = new Set(walkFiles(destDir))
 	servedFiles.delete("index.html")
-	const files = [...servedFiles].sort().map((file) => {
-		const content = readFileSync(path.join(destDir, file))
-		const mediaType = mime.getType(file)
-		if (mediaType === null) {
-			throw new Error(
-				`Cannot resolve a media type for "${file}" — give it a file extension. The manifest must record the type the host will serve.`,
-			)
-		}
-		return {
-			digest: digestOf(content),
-			mediaType,
-			path: `/${file}`,
-			size: content.byteLength,
-		}
-	})
-	const indexContent = readFileSync(path.join(destDir, "index.html"))
-	files.unshift({
-		digest: digestOf(indexContent),
-		mediaType: "text/html",
-		path: "/",
-		size: indexContent.byteLength,
-	})
+	// One list of what the host will serve, and both outputs are derived from it:
+	// the manifest reduces each entry to a digest, the generated _headers reads
+	// the same entries' bytes to decide which types can declare a charset.
+	const served: ServedFile[] = [
+		{
+			content: readFileSync(path.join(destDir, "index.html")),
+			mediaType: "text/html",
+			path: "/",
+		},
+		...[...servedFiles].sort().map((file) => {
+			const mediaType = mime.getType(file)
+			if (mediaType === null) {
+				throw new Error(
+					`Cannot resolve a media type for "${file}" — give it a file extension. The manifest must record the type the host will serve.`,
+				)
+			}
+			return {
+				content: readFileSync(path.join(destDir, file)),
+				mediaType,
+				path: `/${file}`,
+			}
+		}),
+	]
+	const files = served.map((file) => ({
+		digest: digestOf(file.content),
+		mediaType: file.mediaType,
+		path: file.path,
+		size: file.content.byteLength,
+	}))
 
 	const manifest = manifestSchema.parse({
 		canonical: canonicalUrlForId(id),
@@ -229,7 +298,7 @@ export function assembleTrove(options: AssembleOptions): TroveManifest {
 		path.join(destDir, "trove.json"),
 		`${JSON.stringify(manifest, null, "\t")}\n`,
 	)
-	writeFileSync(path.join(destDir, "_headers"), "/*\n  X-Robots-Tag: noindex\n")
+	writeFileSync(path.join(destDir, "_headers"), renderHostHeaders(served))
 
 	return manifest
 }

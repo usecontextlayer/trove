@@ -8,10 +8,10 @@
 			"size": 3141
 		},
 		{
-			"digest": "sha256:35ab8b674213e0c778dbaf81af6efa11d17e5c226a355d151a9b1034211d9355",
+			"digest": "sha256:bf5bc3bba3ff5b295805d320fb389b962b7ba1a37aeb5093ac8774a837ba0260",
 			"mediaType": "text/markdown",
 			"path": "/AGENTS.md",
-			"size": 2194
+			"size": 2806
 		},
 		{
 			"digest": "sha256:3203573ff3b5bce73744817696b8ab43b35d5050c0e8dae00f5ad129729d0179",
@@ -20,10 +20,10 @@
 			"size": 1915
 		},
 		{
-			"digest": "sha256:33b12fd24f6b1bed7212e0df1a4f5b667ecb04583956338f584e8fff7bc3b36b",
+			"digest": "sha256:b5586aa9c0616b959d15a6127ec12853b7098ee4ddd6f82a12ef181144b7c417",
 			"mediaType": "text/markdown",
 			"path": "/skills/writing-troves/SKILL.md",
-			"size": 6780
+			"size": 8605
 		}
 	],
 	"id": "https://trove.usecontextlayer.com",

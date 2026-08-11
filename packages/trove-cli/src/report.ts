@@ -1,10 +1,36 @@
-import type { ContractCheckReport } from "@usecontextlayer/trove-standard"
+import type {
+	ContractCheckReport,
+	ContractCheckStatus,
+} from "@usecontextlayer/trove-standard"
 
 // Rendering a §6.1 report for a human or an agent reading the terminal. The
 // registry returns the full report on every registration — printing only its
 // top-line string sent a creator to inspect a manifest that was perfect, while
 // the actual cause (a fetch that never reached the trove) sat unread in the
 // response body.
+
+// Fixed-width so the check names line up; a report read under time pressure is
+// scanned down the left edge.
+const STATUS_LABEL = {
+	failed: "FAIL",
+	"not-checked": "----",
+	ok: "  ok",
+} as const satisfies Record<ContractCheckStatus, string>
+
+/**
+ * Every check with its verdict, for `trove dev` — where the passing ones are
+ * the point, since the question being asked is "is this ready to publish".
+ * `describeFailures` stays separate because publish and register speak only
+ * when something is wrong.
+ */
+export function describeChecks(report: ContractCheckReport): string {
+	return report.checks
+		.map((check) => {
+			const detail = check.detail === undefined ? "" : ` — ${check.detail}`
+			return `  ${STATUS_LABEL[check.status]}  ${check.name}${detail}`
+		})
+		.join("\n")
+}
 
 /** The failed checks, one per line, with the reason each gave. */
 export function describeFailures(report: ContractCheckReport): string {

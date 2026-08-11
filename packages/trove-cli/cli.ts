@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { existsSync, statSync } from "node:fs"
 import { Command } from "commander"
+import { z } from "zod"
+import { dev } from "@/src/dev"
 import { env } from "@/src/env"
 import { publish } from "@/src/publish"
 import { parseHostUrl, register } from "@/src/register"
@@ -11,6 +13,31 @@ const program = new Command()
 	.description(
 		"Publish and remix troves — folders of static files served at a URL any agent can fetch, verify, and remix. Publishing a trove is two steps that run separately: `publish` puts the bytes online, then `register` certifies them and gives the trove its canonical URL. Neither command runs the other.",
 	)
+
+// Ports are semantic input, so they are coerced by a schema rather than by
+// hand — and reported in one sentence, because a raw validation dump is the
+// kind of CLI output an agent gives up on.
+const portSchema = z.coerce.number().int().min(1024).max(65535)
+
+program
+	.command("dev")
+	.description(
+		"Assemble a folder as a trove and serve it locally with the same asset layer the host runs, then check it against the standard over HTTP and print all seven verdicts. Nothing is deployed, no Cloudflare account is used, and no 60-minute claim clock starts — this is how you look at the page and prove it conforms BEFORE publishing. Serves a snapshot of the folder: re-run to pick up edits.",
+	)
+	.argument("<folder>", "the folder to serve; must contain an AGENTS.md")
+	.option("-p, --port <port>", "port to serve on", "8788")
+	.action(async (folder: string, options: { port: string }) => {
+		if (!existsSync(folder) || !statSync(folder).isDirectory()) {
+			throw new Error(`${folder} is not a directory.`)
+		}
+		const port = portSchema.safeParse(options.port)
+		if (!port.success) {
+			throw new Error(
+				`--port must be a whole number between 1024 and 65535, not "${options.port}".`,
+			)
+		}
+		await dev({ folder, port: port.data })
+	})
 
 program
 	.command("publish")

@@ -12,7 +12,9 @@ export const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/
 // RFC 6838 type/subtype (restricted-name grammar), without parameters — the
 // manifest records the media type's essence; the checker compares it against
 // the served Content-Type with any parameters (`; charset=utf-8`) stripped,
-// since the host appends a charset to text types.
+// since a text response usually carries a charset. The host itself appends
+// none: the charset comes from the publishing tool's generated `_headers`,
+// and only over bytes that are UTF-8.
 const MEDIA_TYPE_PATTERN =
 	/^[a-z0-9][a-z0-9!#$&\-^_.+]{0,126}\/[a-z0-9][a-z0-9!#$&\-^_.+]{0,126}$/i
 

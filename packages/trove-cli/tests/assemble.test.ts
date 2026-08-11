@@ -77,6 +77,63 @@ describe("assembleTrove", () => {
 		)
 	})
 
+	it("generates a charset rule for each UTF-8 text type the trove serves", () => {
+		// The host appends no charset of its own, and markdown has no in-band
+		// mechanism the way HTML has <meta charset> — served bare, AGENTS.md
+		// decodes as CP1252 and every em dash arrives as "â€”".
+		const dest = destDir()
+		assembleTrove({
+			destDir: dest,
+			id: mintId(),
+			sourceDir: makeSourceDir({
+				"AGENTS.md": AGENTS,
+				"data.csv": "a,b\n1,2\n",
+				"logo.png": "not really a png",
+				"skills/writing/SKILL.md": "# Skill\n",
+			}),
+		})
+		const headers = readFileSync(path.join(dest, "_headers"), "utf8")
+		expect(headers).toContain("/\n  Content-Type: text/html; charset=utf-8\n")
+		expect(headers).toContain("/*.md\n  Content-Type: text/markdown; charset=utf-8\n")
+		expect(headers).toContain("/*.csv\n  Content-Type: text/csv; charset=utf-8\n")
+		// Keyed by extension, not by path: the host caps _headers at 100 rules
+		// while a conformant trove may carry 1,000 files, so the nested SKILL.md
+		// and the root AGENTS.md share one rule rather than taking one each.
+		expect(headers.match(/^\/\*\.md$/gm)).toHaveLength(1)
+		// A binary type cannot carry a charset, so it gets no rule at all.
+		expect(headers).not.toContain("image/png")
+	})
+
+	it("withholds an extension's charset rule when any file carrying it is not UTF-8", () => {
+		// A trove may serve text in any encoding, so this is not an error. But the
+		// rule is keyed by extension, and one rule cannot describe two encodings —
+		// so the honest move is to declare nothing for .csv and leave both files
+		// exactly as the host handles them today. Declaring utf-8 would corrupt the
+		// Latin-1 one while every check stayed green.
+		const dir = mkdtempSync(path.join(os.tmpdir(), "trove-test-mixed-"))
+		writeFileSync(path.join(dir, "AGENTS.md"), AGENTS)
+		writeFileSync(path.join(dir, "utf8.csv"), "name\ncafé\n", "utf8")
+		// "café" in ISO-8859-1: 0xe9 is not valid UTF-8.
+		writeFileSync(
+			path.join(dir, "latin1.csv"),
+			Buffer.concat([Buffer.from("name\ncaf"), Buffer.from([0xe9]), Buffer.from("\n")]),
+		)
+
+		const dest = destDir()
+		assembleTrove({ destDir: dest, id: mintId(), sourceDir: dir })
+		const headers = readFileSync(path.join(dest, "_headers"), "utf8")
+
+		// .csv withholds its rule; the unaffected .md keeps one.
+		expect(headers).not.toContain("text/csv")
+		expect(headers).toContain("/*.md\n  Content-Type: text/markdown; charset=utf-8\n")
+
+		// Both CSVs still ship, byte for byte.
+		expect(
+			readFileSync(path.join(dest, "latin1.csv")).includes(Buffer.from([0xe9])),
+		).toBe(true)
+		expect(readFileSync(path.join(dest, "utf8.csv"), "utf8")).toContain("café")
+	})
+
 	it("injects the block into a creator-authored index.html", () => {
 		const id = mintId()
 		const dest = destDir()
@@ -246,7 +303,7 @@ describe("assembleTrove", () => {
 		expect(html).toContain(markup)
 	})
 
-	it("preserves a non-UTF-8 index.html byte for byte", () => {
+	it("preserves a non-UTF-8 index.html byte for byte, and declares no charset for it", () => {
 		// index.html is the one file that round-trips through a JS string.
 		// Reading it as "utf8" replaced every non-UTF-8 byte with U+FFFD, and
 		// the manifest digest was then computed over the mojibake — so a
@@ -276,6 +333,79 @@ describe("assembleTrove", () => {
 		const entry = manifest.files.find((file) => file.path === "/")
 		expect(entry?.size).toBe(out.byteLength)
 		expect(entry?.digest).toBe(`sha256:${createHash("sha256").update(out).digest("hex")}`)
+
+		// The page keeps publishing — a trove may serve text in any encoding. What
+		// it must NOT get is a charset the bytes contradict: an HTTP charset
+		// outranks <meta charset>, so declaring utf-8 here would corrupt the page
+		// this test exists to keep intact. The creator's own meta tag still rules.
+		const headers = readFileSync(path.join(dest, "_headers"), "utf8")
+		expect(headers).not.toContain("Content-Type: text/html")
+		expect(headers).toContain("X-Robots-Tag: noindex")
+	})
+
+	it("preserves multi-byte UTF-8 in a creator-authored index.html", () => {
+		// index.html is the one file that round-trips through a JS string, and it
+		// is read and written as latin1 precisely so the trip is byte-preserving.
+		// An em dash is three bytes; a decode/encode pair that is not
+		// length-preserving corrupts them and the digest then describes the
+		// corruption rather than the page.
+		const source = Buffer.from(
+			'<!doctype html>\n<html><head><meta charset="utf-8"></head><body>\n<p>— ünïcodé 😀</p>\n</body>\n</html>\n',
+			"utf8",
+		)
+		const dir = mkdtempSync(path.join(os.tmpdir(), "trove-test-utf8-"))
+		writeFileSync(path.join(dir, "AGENTS.md"), AGENTS)
+		writeFileSync(path.join(dir, "index.html"), source)
+
+		const dest = destDir()
+		const manifest = assembleTrove({ destDir: dest, id: mintId(), sourceDir: dir })
+		const out = readFileSync(path.join(dest, "index.html"))
+
+		// Every source byte survives, and the block was added rather than the
+		// content re-encoded.
+		expect(out.includes(Buffer.from("— ünïcodé 😀", "utf8"))).toBe(true)
+		expect(out.includes(Buffer.from("�", "utf8"))).toBe(false)
+		const entry = manifest.files.find((file) => file.path === "/")
+		expect(entry?.size).toBe(out.byteLength)
+		expect(entry?.digest).toBe(`sha256:${createHash("sha256").update(out).digest("hex")}`)
+	})
+
+	it("copies binary files byte for byte and digests what is on disk", () => {
+		// A trove carries images, video, and spreadsheets. None of them are
+		// text/*, so none is inspected for encoding, transcoded, or given a
+		// charset — they are copied verbatim and digested as served. Byte
+		// preservation is what the U+FFFD bug broke, and it is asserted here over
+		// bytes that are deliberately not valid UTF-8 in any encoding.
+		const dir = mkdtempSync(path.join(os.tmpdir(), "trove-test-binary-"))
+		writeFileSync(path.join(dir, "AGENTS.md"), AGENTS)
+		// A PNG signature followed by bytes that are invalid UTF-8 sequences.
+		const png = Buffer.from([
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe, 0xc0, 0x80, 0xe9, 0xe8,
+		])
+		const xlsx = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0xff, 0xd8, 0xff, 0xe0, 0x00])
+		writeFileSync(path.join(dir, "logo.png"), png)
+		writeFileSync(path.join(dir, "book.xlsx"), xlsx)
+
+		const dest = destDir()
+		const manifest = assembleTrove({ destDir: dest, id: mintId(), sourceDir: dir })
+
+		for (const [file, source] of [
+			["logo.png", png],
+			["book.xlsx", xlsx],
+		] as const) {
+			const out = readFileSync(path.join(dest, file))
+			expect(out.equals(source)).toBe(true)
+			const entry = manifest.files.find((candidate) => candidate.path === `/${file}`)
+			expect(entry?.size).toBe(source.byteLength)
+			expect(entry?.digest).toBe(
+				`sha256:${createHash("sha256").update(source).digest("hex")}`,
+			)
+		}
+
+		// No charset rule for a binary type — declaring one would be malformed.
+		const headers = readFileSync(path.join(dest, "_headers"), "utf8")
+		expect(headers).not.toContain("image/png")
+		expect(headers).not.toContain("spreadsheetml")
 	})
 
 	it("escapes markup in the AGENTS.md heading it lifts into the generated page", () => {

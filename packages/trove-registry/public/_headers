@@ -4,3 +4,28 @@
 # it; the platform is an artifact in spirit, not in exactness. The registry's
 # Worker routes (/a/*, /register) keep noindex in code — they are
 # artifact-adjacent surfaces, and _headers never reaches Worker responses.
+
+# charset=utf-8 on the text types this directory serves. Not a standard
+# requirement — §5 mandates only noindex, and a trove may serve text in any
+# encoding. It is here because the host appends no charset of its own, so
+# /AGENTS.md went out bare: markdown has no in-band mechanism the way HTML has
+# <meta charset>, and every reader decoding it as CP1252 saw each em dash as
+# "â€”". (`wrangler dev` DOES add one locally, which is how the opposite was
+# once written down as measured. Trust production.)
+#
+# These are UNCONDITIONAL, unlike an artifact's generated _headers, which
+# declares a charset only where the bytes are UTF-8. That is safe only because
+# every file under public/ is UTF-8 today and the platform-manifest test pins
+# their bytes. Adding a non-UTF-8 file here would have it mislabelled by these
+# rules and nothing would catch it — convert it, or narrow the rule.
+#
+# /trove.json is omitted deliberately: application/json defines no charset
+# parameter and is UTF-8 by definition.
+/
+  Content-Type: text/html; charset=utf-8
+
+/*.md
+  Content-Type: text/markdown; charset=utf-8
+
+/*.js
+  Content-Type: text/javascript; charset=utf-8

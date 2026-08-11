@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import * as path from "node:path"
 import { execa } from "execa"
@@ -130,6 +131,87 @@ export async function deployAssembled(options: DeployOptions): Promise<DeployRes
 		throw new Error(`wrangler deploy failed (exit ${result.exitCode}):\n${result.all}`)
 	}
 	return parseDeployOutput(result.all ?? "")
+}
+
+/**
+ * Write the deploy config for an assembled trove. ONE writer, because `dev` and
+ * `publish` must stand up byte-identical servers: `dev` checking a
+ * differently-served trove than the one that later deploys is the single
+ * failure that would make it worthless, and two copies of a config literal is
+ * exactly how that happens.
+ *
+ * The config sits OUTSIDE the assets directory — wrangler publishes its own
+ * scratch files, so the trove is always a subdirectory, never ".". The name
+ * derives from the id (DNS-label-safe); the compatibility date is a constant so
+ * two publishes of the same trove behave identically.
+ */
+export function writeWranglerConfig(options: { deployDir: string; id: string }): void {
+	const { deployDir, id } = options
+	writeFileSync(
+		path.join(deployDir, "wrangler.jsonc"),
+		`${JSON.stringify(
+			{
+				assets: { directory: "./trove" },
+				compatibility_date: COMPATIBILITY_DATE,
+				name: `trove-${id.slice(0, 8)}`,
+			},
+			null,
+			"\t",
+		)}\n`,
+	)
+}
+
+export interface DevServer {
+	/** Resolves when the server exits — Ctrl-C, or a crash. */
+	finished: Promise<unknown>
+	stop: () => void
+	url: string
+}
+
+/**
+ * Serve an assembled trove locally with `wrangler dev`.
+ *
+ * The asset layer wrangler runs here is the SAME one the host runs, which is
+ * the entire reason this is worth doing: measured against a real `_headers`
+ * file, it applies `X-Robots-Tag` to a CSV as well as to HTML, refuses to serve
+ * `_headers` itself, and 307s `/index.html` to `/`. Those are behaviours the
+ * checker's local reader fabricates — so running §6.1 over HTTP against this
+ * server is a real observation where the pre-publish check is mostly true by
+ * construction.
+ *
+ * SAME asset layer is not SAME defaults, and one difference has already cost us
+ * a shipped bug. `wrangler dev` attaches `; charset=utf-8` to text types on its
+ * own; the deployed host does NOT (both measured 2026-08-11). Reading the local
+ * charset as the host's behaviour is what put "the host appends `; charset=utf-8`
+ * to text types (measured)" into the standard, where it was false — and every
+ * fixture copied it, so the suite stayed green while trove.usecontextlayer.com
+ * served /AGENTS.md bare and every em dash reached its reader as "â€”". A charset
+ * observed HERE proves nothing about production; the only thing that makes it
+ * true there is an explicit rule in the generated `_headers`.
+ *
+ * stdio is inherited: wrangler's own startup output is the only diagnosis a
+ * caller gets when the server fails to come up, and swallowing it would reduce
+ * every such failure to a bare timeout.
+ */
+export function serveAssembled(options: { deployDir: string; port: number }): DevServer {
+	const { deployDir, port } = options
+	const child = execa(
+		process.execPath,
+		[wranglerBinPath(), "dev", "--port", String(port)],
+		{
+			cwd: deployDir,
+			env: { ...process.env, WRANGLER_SEND_METRICS: "false" },
+			reject: false,
+			stdio: "inherit",
+		},
+	)
+	return {
+		finished: child,
+		stop: () => {
+			child.kill()
+		},
+		url: `http://localhost:${port}`,
+	}
 }
 
 /**

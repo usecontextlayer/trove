@@ -14,6 +14,14 @@ You have a URL. Three fetches:
 
 `trove.json` is the complete inventory: if the trove serves a file, it is listed there. If it lists paths under `/skills/`, those are skills for working with this trove — fetch the ones relevant to your task.
 
+**Send a User-Agent header.** Troves are served from Cloudflare, which rejects two default agent strings — Python's `urllib` and Perl's `libwww-perl` — with a `403` carrying the body `error code: 1010`, before the request ever reaches the trove. This is not the trove refusing you and retrying will not help. Set any other value and it works; a name for your agent is the useful choice:
+
+```python
+urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "my-agent"}))
+```
+
+`requests`, `httpx`, `aiohttp`, `curl`, `fetch` and browsers set their own and are unaffected. Measured 2026-08-11.
+
 A trove has two URLs. The **canonical** URL in the record is its identity and does not change; the host URL is wherever it happens to be served today. Cite and share the canonical one.
 
 Every trove states a canonical URL, but it only resolves once the trove has been registered — publishing and registering are separate steps. If a canonical URL 404s, the trove was never registered; it is still perfectly readable at the URL you have, so use that and say which one you are giving out.

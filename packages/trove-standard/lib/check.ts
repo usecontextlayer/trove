@@ -127,7 +127,18 @@ export function httpReader(baseUrl: string): TroveReader {
 	}
 }
 
-/** Media-type essence: the served Content-Type minus parameters — the host appends `; charset=utf-8` to text types (measured). */
+/**
+ * Media-type essence: the served Content-Type minus its parameters, case-folded.
+ *
+ * The manifest records the essence alone, so every comparison strips parameters;
+ * a text response usually carries `; charset=utf-8`.
+ *
+ * That charset is declared by the publishing tool's generated `_headers`, NOT by
+ * the host. This line used to say the host appended it "(measured)" — a local
+ * `wrangler dev` default mistaken for production, which is how
+ * trove.usecontextlayer.com came to serve /AGENTS.md bare, mojibaking every em
+ * dash for anyone who decoded it as CP1252.
+ */
 function essence(contentType: string | null): string | null {
 	const bare = contentType?.split(";")[0]?.trim().toLowerCase()
 	return bare === undefined || bare === "" ? null : bare

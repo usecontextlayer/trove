@@ -8,6 +8,14 @@ import mime from "mime"
 // just generated: "/" serves index.html, every response carries noindex (the
 // generated _headers rule), and content types resolve as the host will serve
 // them — the host's asset layer uses this same `mime` package.
+//
+// One generated rule is deliberately NOT modelled: the charset the _headers
+// declares on UTF-8 text types. Every media-type comparison comes down to
+// essence (parameters stripped), so the parameter is immaterial to every check
+// as written, and reproducing it here would mean duplicating the per-extension
+// UTF-8 logic that decides it — a second implementation to drift. Should a
+// check ever read the charset rather than strip it, this is where the two
+// positions would diverge.
 export function localReader(assembledDir: string): TroveReader {
 	return async (trovePath) => {
 		const relative = trovePath === "/" ? "index.html" : trovePath.slice(1)

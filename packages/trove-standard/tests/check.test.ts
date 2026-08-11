@@ -202,6 +202,23 @@ describe("checkTrove", () => {
 		expect(failing(report.checks)).toContain("noindex")
 	})
 
+	it("passes a trove whose text responses carry no charset at all", async () => {
+		// UTF-8 is NOT forced: a trove may serve text in any encoding, and one
+		// whose bytes are not UTF-8 is deliberately served with no charset
+		// declared. Conformance must not depend on the parameter — only on the
+		// media-type essence. The fixtures above all carry `; charset=utf-8`
+		// because that is what a UTF-8 trove now serves, so without this case
+		// nothing would catch a checker that started requiring it.
+		const id = mintId()
+		const responses = conformantTrove(id)
+		for (const served of Object.values(responses)) {
+			served.contentType = served.contentType.split(";")[0] ?? served.contentType
+		}
+		const { report } = await checkTrove({ expectedId: id, read: memoryReader(responses) })
+		expect(failing(report.checks)).toEqual([])
+		expect(report.ok).toBe(true)
+	})
+
 	it("fails caps from the DECLARED manifest, without fetching the files", async () => {
 		// The caps bound the work, not just the verdict. Evaluating them after
 		// the fetch loop made them describe work already done — which is what

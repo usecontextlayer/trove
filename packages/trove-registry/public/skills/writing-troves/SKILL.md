@@ -30,6 +30,8 @@ Before writing CSS, sketch the tokens: 4–6 named colors, two typefaces (a disp
 - Design both themes at token level: palette as custom properties on `:root`, redefined under `@media (prefers-color-scheme: dark)`, with components styled through the tokens — never directly inside the media query.
 - Pair a display and a body face. If you use a webfont, self-host it in the trove rather than linking a CDN, so the trove stays self-contained.
 - Lay out with flex or grid and `gap`, not per-element margins. Wide content — tables, code — gets its own `overflow-x: auto` container so the body never scrolls sideways. Use `font-variant-numeric: tabular-nums` wherever digits line up.
+- **Pin nothing to the top of the viewport.** Trove renders a thin bar above your page and shifts the page down to make room for it. A `position: sticky` or `position: fixed` element anchored at the top resolves against the viewport, not against the shifted page, so it slides underneath the bar the moment the reader scrolls — and nothing in your CSS or ours can prevent that. Keep navigation in the flow of the page, and size full-height sections in something other than `100vh`, which overflows by the bar's height.
+- **Your filenames are part of the interface.** The bar opens onto a details panel that renders `trove.json` as a file tree, so every path you publish is something a reader sees — `notes/temperature-study.md` reads; `notes/tmp2.md` does not.
 - Structure should encode something true. Numbered markers only if the content really is a sequence.
 - Copy is design material. Name things as people recognize them, active voice, specific over clever.
 - **No hidden text anywhere outside the Trove block** — see below.
@@ -59,6 +61,16 @@ Seven checks, run identically on your machine before publishing, at the registry
 | `anti-cloaking` | no hidden text outside the Trove block |
 
 The registry reports `files` and `caps` as *not checked*: a digest verified at registration is stale the moment you redeploy, and the position that needs them verified is the agent about to trust your bytes.
+
+## Text encoding
+
+**Write your text files in UTF-8 and you can ignore this section** — publishing declares `charset=utf-8` for you, and nothing is required of you.
+
+Why it needs declaring: the host states no encoding of its own, and markdown has no in-band mechanism the way HTML has `<meta charset>`. An `AGENTS.md` served without a declared charset is decoded as CP1252 by whoever reads it, so an em dash reaches them as `â€"`.
+
+**Other encodings still publish.** A charset is declared only where it is true, because a declared charset outranks the bytes' own signals — and for HTML it outranks your `<meta charset>` too, so claiming UTF-8 over a Latin-1 page would corrupt it. One gotcha follows from the declaration being per-extension: if two files share an extension and only one is UTF-8, neither gets a charset declared. Keeping one encoding per extension avoids it.
+
+**Non-text files are never touched.** Images, video, audio, PDFs, spreadsheets, and archives are copied byte for byte, never inspected for encoding, and never given a charset.
 
 ## Skills (optional)
 
