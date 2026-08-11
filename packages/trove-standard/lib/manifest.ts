@@ -19,7 +19,7 @@ const MEDIA_TYPE_PATTERN =
 export const manifestFileSchema = z.object({
 	digest: z.string().regex(DIGEST_PATTERN),
 	mediaType: z.string().regex(MEDIA_TYPE_PATTERN),
-	// Absolute path within the artifact, leading slash. "/" itself is the index
+	// Absolute path within the trove, leading slash. "/" itself is the index
 	// page's entry (§3's membership rule).
 	path: z.string().regex(/^\//),
 	// Decoded byte length, never Content-Length as sent — the host serves
@@ -47,7 +47,7 @@ export const manifestSchema = z
 				path: ["canonical"],
 			})
 		}
-		// parent is the canonical URL of the artifact this was remixed from;
+		// parent is the canonical URL of the trove this was remixed from;
 		// parentDigest pins which version. Both absent on an original, both
 		// present on a remix — never one without the other.
 		if ((manifest.parent === undefined) !== (manifest.parentDigest === undefined)) {
@@ -60,4 +60,4 @@ export const manifestSchema = z
 	})
 
 export type ManifestFile = z.infer<typeof manifestFileSchema>
-export type ArtifactManifest = z.infer<typeof manifestSchema>
+export type TroveManifest = z.infer<typeof manifestSchema>

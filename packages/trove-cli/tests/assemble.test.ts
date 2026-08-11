@@ -3,13 +3,13 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import {
-	checkArtifact,
+	checkTrove,
 	MANDATED_SCRIPT_TAG,
 	manifestSchema,
 	mintId,
 } from "@usecontextlayer/trove-standard"
 import { describe, expect, it } from "vitest"
-import { assembleArtifact, REMIX_MARKER_FILE } from "@/src/assemble"
+import { assembleTrove, REMIX_MARKER_FILE } from "@/src/assemble"
 import { localReader } from "@/src/local-reader"
 
 function makeSourceDir(files: Record<string, string>): string {
@@ -22,16 +22,16 @@ function makeSourceDir(files: Record<string, string>): string {
 }
 
 function destDir(): string {
-	return path.join(mkdtempSync(path.join(os.tmpdir(), "trove-test-dest-")), "artifact")
+	return path.join(mkdtempSync(path.join(os.tmpdir(), "trove-test-dest-")), "trove")
 }
 
-const AGENTS = "# Test artifact\n\nA test artifact.\n"
+const AGENTS = "# Test trove\n\nA test trove.\n"
 
-describe("assembleArtifact", () => {
-	it("assembles a conformant artifact from a bare folder", async () => {
+describe("assembleTrove", () => {
+	it("assembles a conformant trove from a bare folder", async () => {
 		const id = mintId()
 		const dest = destDir()
-		const manifest = assembleArtifact({
+		const manifest = assembleTrove({
 			destDir: dest,
 			id,
 			sourceDir: makeSourceDir({ "AGENTS.md": AGENTS, "data.csv": "a,b\n1,2\n" }),
@@ -39,7 +39,7 @@ describe("assembleArtifact", () => {
 
 		// The assembled output passes the standard's own §6.1 checker through the
 		// local adapter — assembly and certification can never drift.
-		const { report } = await checkArtifact({ expectedId: id, read: localReader(dest) })
+		const { report } = await checkTrove({ expectedId: id, read: localReader(dest) })
 		expect(report.checks.filter((check) => !check.ok)).toEqual([])
 
 		// The manifest round-trips through the standard's own schema.
@@ -79,7 +79,7 @@ describe("assembleArtifact", () => {
 	it("injects the block into a creator-authored index.html", () => {
 		const id = mintId()
 		const dest = destDir()
-		assembleArtifact({
+		assembleTrove({
 			destDir: dest,
 			id,
 			sourceDir: makeSourceDir({
@@ -98,7 +98,7 @@ describe("assembleArtifact", () => {
 		// A remixed index.html carries the parent's block with data-trove="".
 		const parentId = mintId()
 		const firstDest = destDir()
-		assembleArtifact({
+		assembleTrove({
 			destDir: firstDest,
 			id: parentId,
 			sourceDir: makeSourceDir({ "AGENTS.md": AGENTS }),
@@ -110,7 +110,7 @@ describe("assembleArtifact", () => {
 
 		const childId = mintId()
 		const secondDest = destDir()
-		assembleArtifact({
+		assembleTrove({
 			destDir: secondDest,
 			id: childId,
 			sourceDir: makeSourceDir({ "AGENTS.md": AGENTS, "index.html": remixed }),
@@ -125,7 +125,7 @@ describe("assembleArtifact", () => {
 		const id = mintId()
 		const parent = "https://trove.usecontextlayer.com/a/0123456789abcdefghjkmnpq"
 		const parentDigest = `sha256:${"a".repeat(64)}`
-		const manifest = assembleArtifact({
+		const manifest = assembleTrove({
 			destDir: destDir(),
 			id,
 			parent,
@@ -136,8 +136,8 @@ describe("assembleArtifact", () => {
 		expect(manifest.parentDigest).toBe(parentDigest)
 	})
 
-	it("excludes the remix marker from artifact content", () => {
-		const manifest = assembleArtifact({
+	it("excludes the remix marker from trove content", () => {
+		const manifest = assembleTrove({
 			destDir: destDir(),
 			id: mintId(),
 			sourceDir: makeSourceDir({
@@ -149,7 +149,7 @@ describe("assembleArtifact", () => {
 	})
 
 	it("serves dotfile paths like .well-known", () => {
-		const manifest = assembleArtifact({
+		const manifest = assembleTrove({
 			destDir: destDir(),
 			id: mintId(),
 			sourceDir: makeSourceDir({
@@ -162,7 +162,7 @@ describe("assembleArtifact", () => {
 
 	it("fails loudly without AGENTS.md", () => {
 		expect(() =>
-			assembleArtifact({
+			assembleTrove({
 				destDir: destDir(),
 				id: mintId(),
 				sourceDir: makeSourceDir({ "data.csv": "a\n" }),
@@ -172,7 +172,7 @@ describe("assembleArtifact", () => {
 
 	it("fails loudly on a creator-authored _headers", () => {
 		expect(() =>
-			assembleArtifact({
+			assembleTrove({
 				destDir: destDir(),
 				id: mintId(),
 				sourceDir: makeSourceDir({ _headers: "/*\n  X: y\n", "AGENTS.md": AGENTS }),
@@ -182,7 +182,7 @@ describe("assembleArtifact", () => {
 
 	it("fails loudly on a file with no resolvable media type", () => {
 		expect(() =>
-			assembleArtifact({
+			assembleTrove({
 				destDir: destDir(),
 				id: mintId(),
 				sourceDir: makeSourceDir({ "AGENTS.md": AGENTS, noextension: "data" }),

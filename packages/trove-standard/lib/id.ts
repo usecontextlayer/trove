@@ -1,4 +1,4 @@
-// The artifact id grammar, from §3 of the standard: 24 characters of lowercase
+// The trove id grammar, from §3 of the standard: 24 characters of lowercase
 // Crockford base32. Crockford excludes `i`, `l`, `o` and `u`, so an id can be
 // read aloud or transcribed without ambiguity. 24 characters is 120 bits.
 const CROCKFORD_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
@@ -14,13 +14,13 @@ export function isWellFormedId(id: string): boolean {
 export function assertWellFormedId(id: string): void {
 	if (!isWellFormedId(id)) {
 		throw new Error(
-			`Malformed artifact id ${JSON.stringify(id)}: expected ${ID_LENGTH} characters of lowercase Crockford base32 (${ID_PATTERN})`,
+			`Malformed trove id ${JSON.stringify(id)}: expected ${ID_LENGTH} characters of lowercase Crockford base32 (${ID_PATTERN})`,
 		)
 	}
 }
 
 /**
- * Mint a fresh artifact id. `byte & 31` maps uniformly onto the 32-character
+ * Mint a fresh trove id. `byte & 31` maps uniformly onto the 32-character
  * alphabet (256 = 8 × 32). Uses `globalThis.crypto`, present in Node ≥ 20,
  * workerd, and browsers, so minting works in every position the standard's
  * tooling runs in.

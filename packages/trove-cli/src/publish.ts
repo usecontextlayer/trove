@@ -1,10 +1,10 @@
 import { mkdtempSync, writeFileSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { checkArtifact, httpReader, mintId } from "@usecontextlayer/trove-standard"
-import { assembleArtifact } from "@/src/assemble"
+import { checkTrove, httpReader, mintId } from "@usecontextlayer/trove-standard"
+import { assembleTrove } from "@/src/assemble"
 import { localReader } from "@/src/local-reader"
-import { registerArtifact } from "@/src/registry"
+import { registerTrove } from "@/src/registry"
 import { readRemixMarker } from "@/src/remix"
 import {
 	COMPATIBILITY_DATE,
@@ -43,14 +43,14 @@ async function verifyDeployed(hostUrl: string, id: string): Promise<void> {
 			)
 			await new Promise((resolve) => setTimeout(resolve, delayMs))
 		}
-		const { report } = await checkArtifact({ expectedId: id, read: httpReader(hostUrl) })
+		const { report } = await checkTrove({ expectedId: id, read: httpReader(hostUrl) })
 		if (report.ok) {
 			return
 		}
 		lastFailures = describeFailures(report)
 	}
 	throw new Error(
-		`the deployed artifact does not match what was published — refusing to register:\n${lastFailures}`,
+		`the deployed trove does not match what was published — refusing to register:\n${lastFailures}`,
 	)
 }
 
@@ -64,9 +64,9 @@ export async function publish(options: {
 	const marker = readRemixMarker(folder)
 
 	const deployDir = mkdtempSync(path.join(os.tmpdir(), "trove-publish-"))
-	const artifactDir = path.join(deployDir, "artifact")
-	assembleArtifact({
-		destDir: artifactDir,
+	const troveDir = path.join(deployDir, "trove")
+	assembleTrove({
+		destDir: troveDir,
 		id,
 		...(marker === null
 			? {}
@@ -77,21 +77,21 @@ export async function publish(options: {
 	// §6.1 in the creator position, before anything is public. Assembly makes
 	// most checks true by construction; what this really guards is the
 	// creator's own content — hidden text outside the block above all.
-	const local = await checkArtifact({ expectedId: id, read: localReader(artifactDir) })
+	const local = await checkTrove({ expectedId: id, read: localReader(troveDir) })
 	if (!local.report.ok) {
 		throw new Error(
-			`the assembled artifact fails its own contract checks — nothing was published:\n${describeFailures(local.report)}`,
+			`the assembled trove fails its own contract checks — nothing was published:\n${describeFailures(local.report)}`,
 		)
 	}
 	// The deploy config sits OUTSIDE the assets directory — wrangler publishes
-	// its own scratch files, so the artifact is always a subdirectory, never ".".
+	// its own scratch files, so the trove is always a subdirectory, never ".".
 	// The name derives from the id (DNS-label-safe); the compatibility date is a
-	// constant so two publishes of the same artifact behave identically.
+	// constant so two publishes of the same trove behave identically.
 	writeFileSync(
 		path.join(deployDir, "wrangler.jsonc"),
 		`${JSON.stringify(
 			{
-				assets: { directory: "./artifact" },
+				assets: { directory: "./trove" },
 				compatibility_date: COMPATIBILITY_DATE,
 				name: `trove-${id.slice(0, 8)}`,
 			},
@@ -115,13 +115,13 @@ export async function publish(options: {
 	await verifyDeployed(deployed.hostUrl, id)
 
 	// The claim URL prints even if registration then fails — losing it lets the
-	// artifact silently evaporate within the hour, the worst first experience.
+	// trove silently evaporate within the hour, the worst first experience.
 	try {
-		const record = await registerArtifact(registryUrl, id, deployed.hostUrl)
+		const record = await registerTrove(registryUrl, id, deployed.hostUrl)
 		console.log(record.canonical)
 	} catch (error) {
 		console.error(
-			`registration failed — the artifact is live but unregistered: ${String(error)}`,
+			`registration failed — the trove is live but unregistered: ${String(error)}`,
 		)
 		process.exitCode = 1
 	}
@@ -129,7 +129,7 @@ export async function publish(options: {
 	if (deployed.claim !== null) {
 		console.log(deployed.claim.url)
 		console.log(
-			`unclaimed, this artifact is deleted in ${deployed.claim.deadlineMinutes} minutes`,
+			`unclaimed, this trove is deleted in ${deployed.claim.deadlineMinutes} minutes`,
 		)
 	}
 }

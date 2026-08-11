@@ -1,8 +1,8 @@
-// trove.js — the one script every artifact loads (§4 of the standard). It is a
-// supply-chain dependency of every artifact ever published, so the surface is
+// trove.js — the one script every trove loads (§4 of the standard). It is a
+// supply-chain dependency of every trove ever published, so the surface is
 // deliberately tiny: find the mandated div, render an edge tab and a drawer
 // showing the human exactly the instructions the agent sees, and resolve the
-// artifact's id against the registry to render registered/unregistered.
+// trove's id against the registry to render registered/unregistered.
 //
 // Trust is resolved by LOOKUP, never asserted by the page: any page can write
 // "trove verified" into a div, so the status comes only from the registry's
@@ -11,7 +11,7 @@
 // The registry origin is derived from this script's own src — the mandated
 // script tag is the single place the domain appears, so the embed inherits a
 // host move automatically and bundles zero imports. All UI lives in a shadow
-// root so artifact CSS and trove.js styles cannot reach each other.
+// root so trove CSS and trove.js styles cannot reach each other.
 
 const ID_PATTERN = /^[0-9a-hj-km-np-tv-z]{24}$/
 
@@ -105,11 +105,11 @@ function render(registryOrigin: string, id: string | null, instructions: string)
 }
 </style>
 <button class="tab" aria-expanded="false">TROVE</button>
-<section class="drawer" role="dialog" aria-label="Trove artifact">
+<section class="drawer" role="dialog" aria-label="trove">
 	<button class="close" aria-label="Close">×</button>
-	<h2>Trove artifact</h2>
+	<h2>trove</h2>
 	<p class="status">Checking registration…</p>
-	<p>This page is a Trove artifact — a set of files any AI agent can fetch, verify, and remix from its URL.</p>
+	<p>This page is a trove — a set of files any AI agent can fetch, verify, and remix from its URL.</p>
 	<p><a class="canonical" href="${canonical}" rel="noopener">${canonical}</a></p>
 	<h2>What agents are told</h2>
 	<pre class="instructions"></pre>

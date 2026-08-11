@@ -19,7 +19,7 @@ describe("renderMandatedBlock", () => {
 		expect(renderMandatedBlock(id)).toContain(`data-trove="${id}"`)
 	})
 
-	it("keeps the script tag byte-identical across artifacts", () => {
+	it("keeps the script tag byte-identical across troves", () => {
 		const other = mintId()
 		expect(renderMandatedBlock(id)).toContain(MANDATED_SCRIPT_TAG)
 		expect(renderMandatedBlock(other)).toContain(MANDATED_SCRIPT_TAG)
@@ -38,7 +38,7 @@ describe("renderMandatedBlock", () => {
 	})
 
 	it("throws on a malformed id", () => {
-		expect(() => renderMandatedBlock("nope")).toThrow(/Malformed artifact id/)
+		expect(() => renderMandatedBlock("nope")).toThrow(/Malformed trove id/)
 	})
 })
 

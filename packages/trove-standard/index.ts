@@ -7,16 +7,16 @@ export {
 } from "@/lib/block"
 export { canonicalUrlForId, TROVE_ORIGIN } from "@/lib/canonical"
 export {
-	type ArtifactReader,
-	type ArtifactResponse,
-	type CheckArtifactResult,
+	type CheckTroveResult,
 	type ContractCheck,
 	type ContractCheckName,
 	type ContractCheckReport,
-	checkArtifact,
+	checkTrove,
 	httpReader,
 	MAX_FILES,
 	MAX_TOTAL_BYTES,
+	type TroveReader,
+	type TroveResponse,
 } from "@/lib/check"
 export {
 	assertWellFormedId,
@@ -26,10 +26,10 @@ export {
 	mintId,
 } from "@/lib/id"
 export {
-	type ArtifactManifest,
 	DIGEST_PATTERN,
 	type ManifestFile,
 	manifestFileSchema,
 	manifestSchema,
+	type TroveManifest,
 } from "@/lib/manifest"
 export { AGENTS_MD_PATH, INDEX_PATH, MANIFEST_PATH } from "@/lib/paths"

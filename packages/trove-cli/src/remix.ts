@@ -35,13 +35,13 @@ export function parseCanonicalUrl(registryUrl: string, from: string): string {
 	const id = from.startsWith(prefix) ? from.slice(prefix.length) : null
 	if (id === null || !ID_PATTERN.test(id)) {
 		throw new Error(
-			`--from takes the artifact's canonical URL (${registryUrl}/a/<id>), not a host URL. The canonical URL is in the artifact's own trove.json.`,
+			`--from takes the trove's canonical URL (${registryUrl}/a/<id>), not a host URL. The canonical URL is in the trove's own trove.json.`,
 		)
 	}
 	return from
 }
 
-export async function remixArtifact(options: {
+export async function remixTrove(options: {
 	canonicalUrl: string
 	destDir: string
 }): Promise<{ fileCount: number }> {
@@ -52,11 +52,11 @@ export async function remixArtifact(options: {
 	}
 
 	// Hash the manifest bytes exactly as fetched — this pins WHICH version was
-	// remixed, since artifacts are mutable and redeploy in place.
+	// remixed, since troves are mutable and redeploy in place.
 	const manifestResponse = await fetch(`${canonicalUrl}/trove.json`)
 	if (!manifestResponse.ok) {
 		throw new Error(
-			`${canonicalUrl}/trove.json answered ${manifestResponse.status} — not a readable artifact.`,
+			`${canonicalUrl}/trove.json answered ${manifestResponse.status} — not a readable trove.`,
 		)
 	}
 	const manifestBytes = Buffer.from(await manifestResponse.arrayBuffer())
@@ -74,7 +74,7 @@ export async function remixArtifact(options: {
 		const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`
 		if (digest !== file.digest) {
 			throw new Error(
-				`${file.path}: served bytes hash to ${digest}, manifest says ${file.digest}. The artifact does not match its own record — do not trust it.`,
+				`${file.path}: served bytes hash to ${digest}, manifest says ${file.digest}. The trove does not match its own record — do not trust it.`,
 			)
 		}
 		if (content.byteLength !== file.size) {

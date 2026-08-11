@@ -1,17 +1,17 @@
 import { MANDATED_SCRIPT_TAG, matchesMandatedDiv } from "@/lib/block"
 import { isWellFormedId } from "@/lib/id"
-import { type ArtifactManifest, manifestSchema } from "@/lib/manifest"
+import { manifestSchema, type TroveManifest } from "@/lib/manifest"
 import { AGENTS_MD_PATH, INDEX_PATH, MANIFEST_PATH } from "@/lib/paths"
 
 // The §6.1 contract checker — ONE implementation running in three positions
 // (the creator's machine before publishing, the registry at registration, a
-// remixing agent before trusting an artifact), so certification can never
-// drift from authoring. Positions differ only in the ArtifactReader adapter
+// remixing agent before trusting a trove), so certification can never
+// drift from authoring. Positions differ only in the TroveReader adapter
 // (HTTP here; the CLI supplies a local-folder adapter applying the serving
 // rules it generates) and in the `expectedId` input — never in the rules.
 
-/** What a position can see for one served path — the normalized artifact view. */
-export interface ArtifactResponse {
+/** What a position can see for one served path — the normalized trove view. */
+export interface TroveResponse {
 	bytes: Uint8Array
 	contentType: string | null
 	/** Whether the response carried X-Robots-Tag: noindex (§5). */
@@ -20,7 +20,7 @@ export interface ArtifactResponse {
 	status: number
 }
 
-export type ArtifactReader = (path: string) => Promise<ArtifactResponse>
+export type TroveReader = (path: string) => Promise<TroveResponse>
 
 export type ContractCheckName =
 	| "mandated-block"
@@ -42,20 +42,20 @@ export interface ContractCheckReport {
 	ok: boolean
 }
 
-export interface CheckArtifactResult {
+export interface CheckTroveResult {
 	/** The parsed manifest when one was served and schema-valid, else null. */
-	manifest: ArtifactManifest | null
+	manifest: TroveManifest | null
 	report: ContractCheckReport
 }
 
 // Check 6's caps (§6.1): safely below the reference host's own ceiling, so
 // anything passing can always deploy. Easy to raise later; lowering would
-// break published artifacts.
+// break published troves.
 export const MAX_FILES = 1000
 export const MAX_TOTAL_BYTES = 25 * 1024 * 1024
 
 /** The HTTP adapter — the registry's and a remixing agent's position. */
-export function httpReader(baseUrl: string): ArtifactReader {
+export function httpReader(baseUrl: string): TroveReader {
 	return async (path) => {
 		const response = await fetch(new URL(path, baseUrl))
 		const bytes = new Uint8Array(await response.arrayBuffer())
@@ -146,22 +146,17 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
 	return chunks
 }
 
-/** Run the §6.1 contract checks over one artifact. `expectedId` is the registry position's input: the id being registered. */
-export async function checkArtifact(options: {
+/** Run the §6.1 contract checks over one trove. `expectedId` is the registry position's input: the id being registered. */
+export async function checkTrove(options: {
 	expectedId?: string
-	read: ArtifactReader
-}): Promise<CheckArtifactResult> {
+	read: TroveReader
+}): Promise<CheckTroveResult> {
 	const { expectedId, read } = options
 
 	// One read per path, shared across checks — check 1 and check 4 both need
 	// "/", and every read feeds check 5.
-	const cache = new Map<
-		string,
-		Promise<{ error?: string; response?: ArtifactResponse }>
-	>()
-	function readOnce(
-		path: string,
-	): Promise<{ error?: string; response?: ArtifactResponse }> {
+	const cache = new Map<string, Promise<{ error?: string; response?: TroveResponse }>>()
+	function readOnce(path: string): Promise<{ error?: string; response?: TroveResponse }> {
 		let pending = cache.get(path)
 		if (pending === undefined) {
 			pending = read(path).then(
@@ -175,7 +170,7 @@ export async function checkArtifact(options: {
 
 	const checks: ContractCheck[] = []
 	const noindexMisses: string[] = []
-	function trackNoindex(path: string, response: ArtifactResponse): void {
+	function trackNoindex(path: string, response: TroveResponse): void {
 		if (!response.noindex) {
 			noindexMisses.push(path)
 		}
@@ -220,7 +215,7 @@ export async function checkArtifact(options: {
 	// itself enforces canonical-derived-from-id), one identity across every
 	// surface: block id = manifest id = (when given) the id being registered.
 	const manifestRead = await readOnce(MANIFEST_PATH)
-	let manifest: ArtifactManifest | null = null
+	let manifest: TroveManifest | null = null
 	{
 		let detail: string | undefined
 		if (manifestRead.response === undefined || !manifestRead.response.ok) {

@@ -2,31 +2,31 @@
 	"canonical": "https://trove.usecontextlayer.com",
 	"files": [
 		{
-			"digest": "sha256:04d073c6395c57ccd7f97222aa58119f57733ca49bf96ab8638a2828ad20ed1d",
+			"digest": "sha256:823afe23905cfaf0d3822bbcc92cda83595ee090b7c1486255ac5f6f13f670ac",
 			"mediaType": "text/html",
 			"path": "/",
-			"size": 2947
+			"size": 2933
 		},
 		{
-			"digest": "sha256:38f8cb470854a05519632555dc40276992119f7586ed021630e2cabbd05f4aa5",
+			"digest": "sha256:b7f0924c996e543a85cc41d17e4bd362effa731b1936678eb79e345ef67b6a0f",
 			"mediaType": "text/markdown",
 			"path": "/AGENTS.md",
-			"size": 1950
+			"size": 1891
 		},
 		{
-			"digest": "sha256:a147982e62702340942aa800c28d5f6cc26b163638a7878a9eeed55e0ca7957c",
+			"digest": "sha256:a267dd0d78494024e8890513fe87f423fd06b5c9f94964c67570096c5989a8b0",
 			"mediaType": "text/markdown",
-			"path": "/skills/remixing-artifacts/SKILL.md",
-			"size": 1543
+			"path": "/skills/remixing-troves/SKILL.md",
+			"size": 1502
 		},
 		{
-			"digest": "sha256:608ff747751fb13670e003ea229708312a6de883c81ea898b4448e646aa5b4b7",
+			"digest": "sha256:b2a3691c6191bbac7f85a1a8fa1e6f1a46497cb6e90df28e6294c71d03d87bf1",
 			"mediaType": "text/markdown",
-			"path": "/skills/writing-artifacts/SKILL.md",
-			"size": 3949
+			"path": "/skills/writing-troves/SKILL.md",
+			"size": 3895
 		}
 	],
 	"id": "https://trove.usecontextlayer.com",
-	"note": "Trove itself is an artifact in spirit, not in exactness: its id is its URL, /trove.js is elided (its digest changes with each build), and /a/* and /register are routes, not files.",
+	"note": "Trove itself is a trove in spirit, not in exactness: its id is its URL, /trove.js is elided (its digest changes with each build), and /a/* and /register are routes, not files.",
 	"standard": 1
 }

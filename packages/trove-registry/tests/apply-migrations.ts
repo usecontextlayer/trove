@@ -4,7 +4,7 @@ import { afterEach, beforeEach, inject } from "vitest"
 
 declare module "vitest" {
 	interface ProvidedContext {
-		fixtureArtifactId: string
+		fixtureTroveId: string
 		fixtureHostUrl: string
 		fixtureMirrorHostUrl: string
 		migrations: D1Migration[]

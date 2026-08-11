@@ -8,7 +8,7 @@ import { assertWellFormedId } from "@/lib/id"
  */
 export const TROVE_ORIGIN = "https://trove.usecontextlayer.com"
 
-/** The artifact's canonical URL — its stable identity, derived purely from the id. */
+/** The trove's canonical URL — its stable identity, derived purely from the id. */
 export function canonicalUrlForId(id: string): string {
 	assertWellFormedId(id)
 	return `${TROVE_ORIGIN}/a/${id}`

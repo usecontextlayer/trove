@@ -3,7 +3,7 @@
  * Please do not edit it manually.
  */
 
-export interface Artifact {
+export interface Trove {
 	contract_check: string
 	host_url: string
 	id: string
@@ -13,5 +13,5 @@ export interface Artifact {
 }
 
 export interface DB {
-	artifact: Artifact
+	trove: Trove
 }

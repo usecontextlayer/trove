@@ -37,7 +37,7 @@ describe("id grammar", () => {
 		["empty", ""],
 	])("rejects %s", (_label, id) => {
 		expect(isWellFormedId(id)).toBe(false)
-		expect(() => assertWellFormedId(id)).toThrow(/Malformed artifact id/)
+		expect(() => assertWellFormedId(id)).toThrow(/Malformed trove id/)
 	})
 })
 
@@ -48,6 +48,6 @@ describe("canonicalUrlForId", () => {
 	})
 
 	it("throws on a malformed id", () => {
-		expect(() => canonicalUrlForId("not-an-id")).toThrow(/Malformed artifact id/)
+		expect(() => canonicalUrlForId("not-an-id")).toThrow(/Malformed trove id/)
 	})
 })

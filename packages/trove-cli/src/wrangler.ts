@@ -7,7 +7,7 @@ import { execa } from "execa"
 // undocumented (absent from --help, surfaced only in error text) and the
 // claim-URL output shape is parsed below, so a version drift can break both.
 
-/** Fixed compatibility date, a constant so two publishes of the same artifact behave identically — never "today". */
+/** Fixed compatibility date, a constant so two publishes of the same trove behave identically — never "today". */
 export const COMPATIBILITY_DATE = "2026-08-01"
 
 const require_ = createRequire(import.meta.url)
@@ -96,7 +96,7 @@ export function parseDeployOutput(output: string): DeployResult {
 export interface DeployOptions {
 	/** Anonymous (--temporary) or the creator's own authenticated account. */
 	anonymous: boolean
-	/** The directory holding wrangler.jsonc, with the artifact in a SUBDIRECTORY — never deploy the working directory itself. */
+	/** The directory holding wrangler.jsonc, with the trove in a SUBDIRECTORY — never deploy the working directory itself. */
 	deployDir: string
 }
 
@@ -108,7 +108,7 @@ export async function deployAssembled(options: DeployOptions): Promise<DeployRes
 	}
 	const args = [wranglerBinPath(), "deploy"]
 	if (anonymous) {
-		// Isolate the deploy state per artifact: temporary accounts share one
+		// Isolate the deploy state per trove: temporary accounts share one
 		// state file per config dir — one account, one URL slug, and ONE expiry
 		// clock counting from the first deploy (measured). And --temporary errors
 		// when credentials are present, so the ambient ones are dropped.

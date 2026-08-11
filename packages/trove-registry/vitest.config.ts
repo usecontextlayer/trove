@@ -18,14 +18,14 @@ import {
 
 const projectRoot = fileURLToPath(new URL(".", import.meta.url))
 
-// A conformant fixture artifact, built at config-load time from trove-standard's
+// A conformant fixture trove, built at config-load time from trove-standard's
 // REAL block template and manifest shape — so the fixture can never drift from
 // the standard — and served by an auxiliary miniflare worker on a *.workers.dev
 // route. The registry Worker's outbound manifest fetch during POST /register
 // resolves against it inside miniflare, with no seam in production code.
-const FIXTURE_ARTIFACT_ID = "0123456789abcdefghjkmnpq"
+const FIXTURE_TROVE_ID = "0123456789abcdefghjkmnpq"
 const FIXTURE_HOST_URL = "https://trove-fixture.test-account.workers.dev"
-// A second host serving the SAME artifact bytes — §7's copy-and-re-point
+// A second host serving the SAME trove bytes — §7's copy-and-re-point
 // attack, which the registry's no-rebind rule must reject.
 const FIXTURE_MIRROR_HOST_URL = "https://trove-mirror.test-account.workers.dev"
 
@@ -35,17 +35,17 @@ function digest(content: string): string {
 
 const indexHtml = `<!doctype html>
 <html>
-<head><title>Fixture artifact</title></head>
+<head><title>Fixture trove</title></head>
 <body>
-<h1>Fixture artifact</h1>
-${renderMandatedBlock(FIXTURE_ARTIFACT_ID)}
+<h1>Fixture trove</h1>
+${renderMandatedBlock(FIXTURE_TROVE_ID)}
 </body>
 </html>
 `
-const agentsMd = "# Fixture artifact\n\nA tiny artifact used by the registry's tests.\n"
+const agentsMd = "# Fixture trove\n\nA tiny trove used by the registry's tests.\n"
 const dataCsv = "a,b\n1,2\n"
 const manifest = {
-	canonical: canonicalUrlForId(FIXTURE_ARTIFACT_ID),
+	canonical: canonicalUrlForId(FIXTURE_TROVE_ID),
 	files: [
 		{
 			digest: digest(indexHtml),
@@ -66,7 +66,7 @@ const manifest = {
 			size: Buffer.byteLength(dataCsv),
 		},
 	],
-	id: FIXTURE_ARTIFACT_ID,
+	id: FIXTURE_TROVE_ID,
 	standard: 1,
 }
 
@@ -77,7 +77,7 @@ const fixtureResponses: Record<string, { body: string; contentType: string }> = 
 	[MANIFEST_PATH]: { body: JSON.stringify(manifest), contentType: "application/json" },
 }
 
-const artifactHostScript = `
+const troveHostScript = `
 const RESPONSES = ${JSON.stringify(fixtureResponses)};
 export default {
 	async fetch(request) {
@@ -123,14 +123,14 @@ export default defineConfig({
 							// outboundService is the interception point: every outbound
 							// fetch from the test worker resolves against the fixture
 							// host, which routes by pathname alone, so both fixture host
-							// names serve the same artifact.
-							outboundService: "artifact-host",
+							// names serve the same trove.
+							outboundService: "trove-host",
 							workers: [
 								{
 									compatibilityDate: "2026-08-01",
 									modules: true,
-									name: "artifact-host",
-									script: artifactHostScript,
+									name: "trove-host",
+									script: troveHostScript,
 								},
 							],
 						},
@@ -142,9 +142,9 @@ export default defineConfig({
 					include: workerUnitTestInclude,
 					name: "trove-registry:worker",
 					provide: {
-						fixtureArtifactId: FIXTURE_ARTIFACT_ID,
 						fixtureHostUrl: FIXTURE_HOST_URL,
 						fixtureMirrorHostUrl: FIXTURE_MIRROR_HOST_URL,
+						fixtureTroveId: FIXTURE_TROVE_ID,
 						migrations,
 					},
 					root: projectRoot,

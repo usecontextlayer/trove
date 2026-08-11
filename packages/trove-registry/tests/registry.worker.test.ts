@@ -4,7 +4,7 @@ import { describe, expect, inject, it } from "vitest"
 
 const REGISTRY = "https://trove.usecontextlayer.com"
 
-const fixtureId = inject("fixtureArtifactId")
+const fixtureId = inject("fixtureTroveId")
 const fixtureHost = inject("fixtureHostUrl")
 const fixtureMirrorHost = inject("fixtureMirrorHostUrl")
 
@@ -17,7 +17,7 @@ async function registerFixture(): Promise<Response> {
 }
 
 describe("POST /register", () => {
-	it("registers a conformant artifact and returns its record", async () => {
+	it("registers a conformant trove and returns its record", async () => {
 		const response = await registerFixture()
 		expect(response.status).toBe(201)
 		expect(response.headers.get("x-robots-tag")).toBe("noindex")
@@ -43,7 +43,7 @@ describe("POST /register", () => {
 
 	it("rejects re-pointing an id at a mirror serving the same bytes", async () => {
 		// §7's copy-and-re-point attack: the mirror serves a byte-identical
-		// artifact (so control-proof passes), but the id is permanently bound to
+		// trove (so control-proof passes), but the id is permanently bound to
 		// its first host.
 		await registerFixture()
 		const response = await SELF.fetch(`${REGISTRY}/register`, {
@@ -54,7 +54,7 @@ describe("POST /register", () => {
 		expect(response.status).toBe(409)
 	})
 
-	it("rejects an id the hosted artifact does not carry", async () => {
+	it("rejects an id the hosted trove does not carry", async () => {
 		const response = await SELF.fetch(`${REGISTRY}/register`, {
 			body: JSON.stringify({ hostUrl: fixtureHost, id: mintId() }),
 			headers: { "content-type": "application/json" },
@@ -139,7 +139,7 @@ describe("GET /a/<id> subtree", () => {
 		expect(response.headers.get("location")).toBe(`${fixtureHost}/data.csv`)
 	})
 
-	it("makes the canonical URL usable as an artifact base URL", async () => {
+	it("makes the canonical URL usable as a trove base URL", async () => {
 		// §7: an agent handed only a canonical URL can perform every read the
 		// standard defines — the redirect must land on the real served bytes.
 		await registerFixture()

@@ -11,7 +11,7 @@ export interface RegistryRecord {
 	standard: number
 }
 
-export async function registerArtifact(
+export async function registerTrove(
 	registryUrl: string,
 	id: string,
 	hostUrl: string,

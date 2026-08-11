@@ -9,11 +9,11 @@ import {
 } from "node:fs"
 import * as path from "node:path"
 import {
-	type ArtifactManifest,
 	canonicalUrlForId,
 	MANDATED_SCRIPT_TAG,
 	manifestSchema,
 	renderMandatedBlock,
+	type TroveManifest,
 } from "@usecontextlayer/trove-standard"
 import mime from "mime"
 
@@ -22,10 +22,10 @@ import mime from "mime"
 // trove.json, generated host headers. Pure file-level work — deploying and
 // registering live elsewhere.
 
-/** Lineage marker remix writes and publish reads; never artifact content. */
+/** Lineage marker remix writes and publish reads; never trove content. */
 export const REMIX_MARKER_FILE = ".trove-parent.json"
 
-// Entries that never become artifact content: the lineage marker, VCS state,
+// Entries that never become trove content: the lineage marker, VCS state,
 // OS noise, and the two files the assembly itself generates fresh.
 const EXCLUDED_ROOT_ENTRIES = new Set([
 	REMIX_MARKER_FILE,
@@ -97,7 +97,7 @@ function injectBlock(html: string, id: string): string {
  */
 function generateIndexHtml(sourceDir: string, id: string): string {
 	const agentsMd = readFileSync(path.join(sourceDir, "AGENTS.md"), "utf8")
-	const title = agentsMd.match(/^#\s+(.+)$/m)?.[1] ?? "A Trove artifact"
+	const title = agentsMd.match(/^#\s+(.+)$/m)?.[1] ?? "A trove"
 	return `<!doctype html>
 <html lang="en">
 <head>
@@ -108,19 +108,19 @@ function generateIndexHtml(sourceDir: string, id: string): string {
 </head>
 <body>
 <h1>${title}</h1>
-<p>This is a Trove artifact — a set of files any AI agent can fetch, verify, and remix from this URL. Its manual is at <a href="/AGENTS.md">AGENTS.md</a> and its inventory at <a href="/trove.json">trove.json</a>.</p>
+<p>This is a trove — a set of files any AI agent can fetch, verify, and remix from this URL. Its manual is at <a href="/AGENTS.md">AGENTS.md</a> and its inventory at <a href="/trove.json">trove.json</a>.</p>
 ${renderMandatedBlock(id)}
 </body>
 </html>
 `
 }
 
-export function assembleArtifact(options: AssembleOptions): ArtifactManifest {
+export function assembleTrove(options: AssembleOptions): TroveManifest {
 	const { destDir, id, parent, parentDigest, sourceDir } = options
 
 	if (!existsSync(path.join(sourceDir, "AGENTS.md"))) {
 		throw new Error(
-			`${sourceDir} has no AGENTS.md — every artifact requires one (§2.2): the creator's manual for the agent that arrives later.`,
+			`${sourceDir} has no AGENTS.md — every trove requires one (§2.2): the creator's manual for the agent that arrives later.`,
 		)
 	}
 	if (existsSync(path.join(sourceDir, "_headers"))) {

@@ -62,7 +62,7 @@ function biome(): void {
 	run(`../../node_modules/.bin/biome check --write ${path.dirname(MODELS_FILE)}`)
 }
 
-// The platform's own manifest (owner-ruled: Trove is an artifact in SPIRIT,
+// The platform's own manifest (owner-ruled: Trove is a trove in SPIRIT,
 // not in exactness — it has a trove.json, its id is its URL, and some entries
 // are deliberately elided). Only the stable authored files are listed;
 // /trove.js is elided because its digest changes with every embed build (the
@@ -74,13 +74,13 @@ const PLATFORM_MANIFEST_FILES = [
 	{ mediaType: "text/markdown", path: "/AGENTS.md", source: "AGENTS.md" },
 	{
 		mediaType: "text/markdown",
-		path: "/skills/remixing-artifacts/SKILL.md",
-		source: "skills/remixing-artifacts/SKILL.md",
+		path: "/skills/remixing-troves/SKILL.md",
+		source: "skills/remixing-troves/SKILL.md",
 	},
 	{
 		mediaType: "text/markdown",
-		path: "/skills/writing-artifacts/SKILL.md",
-		source: "skills/writing-artifacts/SKILL.md",
+		path: "/skills/writing-troves/SKILL.md",
+		source: "skills/writing-troves/SKILL.md",
 	},
 ]
 
@@ -99,7 +99,7 @@ function manifest(): void {
 		canonical: TROVE_ORIGIN,
 		files,
 		id: TROVE_ORIGIN,
-		note: "Trove itself is an artifact in spirit, not in exactness: its id is its URL, /trove.js is elided (its digest changes with each build), and /a/* and /register are routes, not files.",
+		note: "Trove itself is a trove in spirit, not in exactness: its id is its URL, /trove.js is elided (its digest changes with each build), and /a/* and /register are routes, not files.",
 		standard: 1,
 	}
 	writeFileSync(

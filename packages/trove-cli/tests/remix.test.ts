@@ -5,15 +5,15 @@ import * as os from "node:os"
 import * as path from "node:path"
 import { manifestSchema, mintId } from "@usecontextlayer/trove-standard"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { assembleArtifact } from "@/src/assemble"
-import { parseCanonicalUrl, readRemixMarker, remixArtifact } from "@/src/remix"
+import { assembleTrove } from "@/src/assemble"
+import { parseCanonicalUrl, readRemixMarker, remixTrove } from "@/src/remix"
 
 // The far side of remix is OUR OWN standard: a local server serving a
-// REAL assembled artifact (built by assembleArtifact, digests and all) at
+// REAL assembled trove (built by assembleTrove, digests and all) at
 // canonical-shaped paths — the state a remixing agent sees after the
 // registry's subtree redirect resolves.
 
-const artifactId = mintId()
+const troveId = mintId()
 let server: http.Server
 let registryUrl: string
 let canonicalUrl: string
@@ -21,20 +21,20 @@ let assembledDir: string
 
 beforeAll(async () => {
 	assembledDir = path.join(mkdtempSync(path.join(os.tmpdir(), "trove-remix-src-")), "a")
-	assembleArtifact({
+	assembleTrove({
 		destDir: assembledDir,
-		id: artifactId,
+		id: troveId,
 		sourceDir: makeSource(),
 	})
 
 	server = http.createServer((request, response) => {
-		const prefix = `/a/${artifactId}`
+		const prefix = `/a/${troveId}`
 		if (!request.url?.startsWith(prefix)) {
 			response.writeHead(404).end()
 			return
 		}
-		const artifactPath = request.url.slice(prefix.length) || "/"
-		const file = artifactPath === "/" ? "index.html" : artifactPath.slice(1)
+		const trovePath = request.url.slice(prefix.length) || "/"
+		const file = trovePath === "/" ? "index.html" : trovePath.slice(1)
 		try {
 			response.writeHead(200).end(readFileSync(path.join(assembledDir, file)))
 		} catch {
@@ -47,7 +47,7 @@ beforeAll(async () => {
 		throw new Error("server did not bind a port")
 	}
 	registryUrl = `http://127.0.0.1:${address.port}`
-	canonicalUrl = `${registryUrl}/a/${artifactId}`
+	canonicalUrl = `${registryUrl}/a/${troveId}`
 })
 
 afterAll(() => {
@@ -66,9 +66,9 @@ describe("parseCanonicalUrl", () => {
 		expect(
 			parseCanonicalUrl(
 				"https://trove.usecontextlayer.com",
-				`https://trove.usecontextlayer.com/a/${artifactId}`,
+				`https://trove.usecontextlayer.com/a/${troveId}`,
 			),
-		).toBe(`https://trove.usecontextlayer.com/a/${artifactId}`)
+		).toBe(`https://trove.usecontextlayer.com/a/${troveId}`)
 	})
 
 	it("rejects a host URL, naming what canonical looks like", () => {
@@ -81,13 +81,13 @@ describe("parseCanonicalUrl", () => {
 	})
 })
 
-describe("remixArtifact", () => {
+describe("remixTrove", () => {
 	it("fetches, verifies, strips identity, and records lineage", async () => {
 		const destDir = path.join(
 			mkdtempSync(path.join(os.tmpdir(), "trove-remix-out-")),
 			"r",
 		)
-		const { fileCount } = await remixArtifact({ canonicalUrl, destDir })
+		const { fileCount } = await remixTrove({ canonicalUrl, destDir })
 		expect(fileCount).toBe(3)
 
 		// Files landed and match the origin bytes.
@@ -99,7 +99,7 @@ describe("remixArtifact", () => {
 		// parent's trove.json was never written.
 		const html = readFileSync(path.join(destDir, "index.html"), "utf8")
 		expect(html).toContain('data-trove=""')
-		expect(html).not.toContain(`data-trove="${artifactId}"`)
+		expect(html).not.toContain(`data-trove="${troveId}"`)
 		expect(() => readFileSync(path.join(destDir, "trove.json"))).toThrow()
 
 		// The marker pins the parent version: parentDigest is the hash of the
@@ -117,7 +117,7 @@ describe("remixArtifact", () => {
 			mkdtempSync(path.join(os.tmpdir(), "trove-remix-out2-")),
 			"r",
 		)
-		await remixArtifact({ canonicalUrl, destDir })
+		await remixTrove({ canonicalUrl, destDir })
 		const marker = readRemixMarker(destDir)
 		if (marker === null) {
 			throw new Error("marker missing")
@@ -128,7 +128,7 @@ describe("remixArtifact", () => {
 			mkdtempSync(path.join(os.tmpdir(), "trove-remix-pub-")),
 			"a",
 		)
-		const manifest = assembleArtifact({
+		const manifest = assembleTrove({
 			destDir: childDest,
 			id: childId,
 			parent: marker.parent,
@@ -139,7 +139,7 @@ describe("remixArtifact", () => {
 		// The child's page carries the child's id, not the parent's.
 		const html = readFileSync(path.join(childDest, "index.html"), "utf8")
 		expect(html).toContain(`data-trove="${childId}"`)
-		expect(html).not.toContain(artifactId)
+		expect(html).not.toContain(troveId)
 	})
 
 	it("aborts loudly when served bytes do not match the manifest digest", async () => {
@@ -151,7 +151,7 @@ describe("remixArtifact", () => {
 				mkdtempSync(path.join(os.tmpdir(), "trove-remix-out3-")),
 				"r",
 			)
-			await expect(remixArtifact({ canonicalUrl, destDir })).rejects.toThrow(
+			await expect(remixTrove({ canonicalUrl, destDir })).rejects.toThrow(
 				/do not trust it/,
 			)
 		} finally {

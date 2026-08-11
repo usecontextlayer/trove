@@ -1,6 +1,6 @@
 import {
 	canonicalUrlForId,
-	checkArtifact,
+	checkTrove,
 	httpReader,
 	ID_PATTERN,
 	MANIFEST_PATH,
@@ -8,11 +8,11 @@ import {
 import { type Context, Hono } from "hono"
 import { cors } from "hono/cors"
 import { z } from "zod"
-import type { Artifact } from "@/database"
+import type { Trove } from "@/database"
 import { createRegistryDb } from "@/database"
 
 // The registry — the only server Trove operates. Its claim: "this URL conforms
-// to the artifact standard." Three routes plus a redirect subtree; everything
+// to the trove standard." Three routes plus a redirect subtree; everything
 // else this domain serves (/trove.js, /AGENTS.md, /skills/**) is a static asset
 // that never invokes this Worker (see run_worker_first in wrangler.jsonc).
 
@@ -28,7 +28,7 @@ const registerBodySchema = z.object({
 const RECORD_ROUTE = "/a/:id{[^/]+\\.json}"
 
 /**
- * §7: hostUrl must be a Cloudflare Workers host, and artifacts live at a host
+ * §7: hostUrl must be a Cloudflare Workers host, and troves live at a host
  * root (§2.1), so a hostUrl carrying a path, query, or fragment is malformed.
  * The explicit dot matters — a naive endsWith("workers.dev") would also accept
  * evilworkers.dev.
@@ -44,8 +44,8 @@ function parseHostOrigin(hostUrl: string): string | null {
 	return url.origin
 }
 
-/** The public record served at /a/<id>.json — one row per artifact. */
-function recordFromRow(row: Artifact): Record<string, unknown> {
+/** The public record served at /a/<id>.json — one row per trove. */
+function recordFromRow(row: Trove): Record<string, unknown> {
 	return {
 		canonical: canonicalUrlForId(row.id),
 		contractCheck: JSON.parse(row.contract_check),
@@ -57,9 +57,9 @@ function recordFromRow(row: Artifact): Record<string, unknown> {
 	}
 }
 
-async function lookupRow(id: string, env: Env): Promise<Artifact | undefined> {
+async function lookupRow(id: string, env: Env): Promise<Trove | undefined> {
 	const db = createRegistryDb(env.DB)
-	return db.selectFrom("artifact").selectAll().where("id", "=", id).executeTakeFirst()
+	return db.selectFrom("trove").selectAll().where("id", "=", id).executeTakeFirst()
 }
 
 const app = new Hono<{ Bindings: Env }>()
@@ -98,12 +98,12 @@ app.post("/register", async (c) => {
 	// creator's machine and in a remixing agent, in the registry position
 	// (expectedId = the id being registered). Identity is the GATE: an
 	// unreadable manifest is 422, a different id is 409 (proof of control, §7 —
-	// the artifact carries its own id, so registering someone else's URL fails
+	// the trove carries its own id, so registering someone else's URL fails
 	// with no challenge file and no token). A readable, correctly-identified
-	// artifact registers even with failing checks: the row records the full
+	// trove registers even with failing checks: the row records the full
 	// report, /a/<id>.json exposes it, and trove.js renders the verdict —
 	// certification is carried by the stored result, not by row existence.
-	const { manifest, report } = await checkArtifact({
+	const { manifest, report } = await checkTrove({
 		expectedId: id,
 		read: httpReader(hostOrigin),
 	})
@@ -114,12 +114,12 @@ app.post("/register", async (c) => {
 		)
 	}
 	if (manifest.id !== id) {
-		return c.json({ error: "the artifact served at hostUrl carries a different id" }, 409)
+		return c.json({ error: "the trove served at hostUrl carries a different id" }, 409)
 	}
 
 	const db = createRegistryDb(c.env.DB)
 	const existing = await db
-		.selectFrom("artifact")
+		.selectFrom("trove")
 		.select(["host_url", "registered_at"])
 		.where("id", "=", id)
 		.executeTakeFirst()
@@ -131,7 +131,7 @@ app.post("/register", async (c) => {
 	}
 
 	const now = new Date().toISOString()
-	const row: Artifact = {
+	const row: Trove = {
 		contract_check: JSON.stringify({ checkedAt: now, ...report }),
 		host_url: hostOrigin,
 		id,
@@ -140,7 +140,7 @@ app.post("/register", async (c) => {
 		standard: manifest.standard,
 	}
 	await db
-		.insertInto("artifact")
+		.insertInto("trove")
 		.values(row)
 		.onConflict((oc) =>
 			oc.column("id").doUpdateSet({
@@ -158,7 +158,7 @@ app.all("/register", (c) =>
 	c.json({ error: "method not allowed" }, 405, { allow: "POST" }),
 )
 
-// /a/<id>.json — the artifact's public record. Served with CORS because
+// /a/<id>.json — the trove's public record. Served with CORS because
 // trove.js runs on the creator's origin and must read this cross-origin; the
 // middleware also answers OPTIONS preflight with a 204.
 app.use(RECORD_ROUTE, cors({ allowMethods: ["GET"], maxAge: 86400, origin: "*" }))
@@ -166,7 +166,7 @@ app.get(RECORD_ROUTE, async (c) => {
 	const id = c.req.param("id").replace(/\.json$/, "")
 	const row = await lookupRow(id, c.env)
 	if (!row) {
-		return c.json({ error: "unknown artifact id" }, 404)
+		return c.json({ error: "unknown trove id" }, 404)
 	}
 	return c.json(recordFromRow(row))
 })
@@ -182,7 +182,7 @@ async function redirectToHost(
 ): Promise<Response> {
 	const row = await lookupRow(id, c.env)
 	if (!row) {
-		return c.json({ error: "unknown artifact id" }, 404)
+		return c.json({ error: "unknown trove id" }, 404)
 	}
 	const search = new URL(c.req.url).search
 	const location = new URL(`/${subpath}${search}`, row.host_url)

@@ -10,4 +10,4 @@ export function createRegistryDb(database: D1Database): Kysely<DB> {
 	return new Kysely<DB>({ dialect: new D1Dialect({ database }) })
 }
 
-export type { Artifact, DB } from "@/database/models/DB"
+export type { DB, Trove } from "@/database/models/DB"

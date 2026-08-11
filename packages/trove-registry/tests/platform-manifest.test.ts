@@ -24,7 +24,7 @@ const manifest = JSON.parse(
 
 describe("the platform's own trove.json", () => {
 	it("carries the special id — the platform's URL, for id and canonical both", () => {
-		// Trove is an artifact in spirit, not in exactness: its id is its URL.
+		// Trove is a trove in spirit, not in exactness: its id is its URL.
 		// NOTE for consumers: nothing may treat this CLAIM as proof of being the
 		// platform — trove.json can be faked; platform detection is by location.
 		expect(manifest.id).toBe(TROVE_ORIGIN)
@@ -36,8 +36,8 @@ describe("the platform's own trove.json", () => {
 		expect(manifest.files.map((file) => file.path).sort()).toEqual([
 			"/",
 			"/AGENTS.md",
-			"/skills/remixing-artifacts/SKILL.md",
-			"/skills/writing-artifacts/SKILL.md",
+			"/skills/remixing-troves/SKILL.md",
+			"/skills/writing-troves/SKILL.md",
 		])
 	})
 
