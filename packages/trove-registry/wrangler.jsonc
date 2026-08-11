@@ -25,10 +25,10 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			// Placeholder until `wrangler d1 create trove-registry` runs against the
-			// real account (deploy-time step). Local dev and tests key off this
-			// string but never talk to remote D1.
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			// The real database in the production account (803 Inc), created
+			// 2026-08-10 via `wrangler d1 create trove-registry`. Local dev and
+			// tests key off this string but never talk to remote D1.
+			"database_id": "80f3840f-93b7-4b80-a738-2ba6d88e562a",
 			"database_name": "trove-registry",
 			"migrations_dir": "database/migrations"
 		}
