@@ -6,7 +6,7 @@ import { defineConfig } from "tsdown"
 // <script src> tag; no globalName because the script is purely side-effecting.
 // `target` and `dts` are explicit because tsdown's auto-detection would
 // otherwise resolve target from engines.node and dts from the base tsconfig's
-// `declaration: true` — both wrong for a browser bundle — wrong for this browser bundle (measured).
+// `declaration: true` — both wrong for a browser bundle (measured).
 export default defineConfig({
 	clean: true,
 	dts: false,
