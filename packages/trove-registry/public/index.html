@@ -30,12 +30,13 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--edge);
 <p>A trove carries its own manual (<code>AGENTS.md</code>), its own inventory with digests (<code>trove.json</code>), and a page like this one. Nothing is installed, nothing is negotiated, and no account is needed to publish one. Hand someone the URL — their agent does the rest.</p>
 
 <h2>Publish a folder</h2>
-<pre>npx @usecontextlayer/trove publish &lt;folder&gt;</pre>
+<pre>npx @usecontextlayer/trove publish &lt;folder&gt;
+npx @usecontextlayer/trove register &lt;host-url&gt;</pre>
+<p>Two steps, and neither runs the other. Publishing puts the bytes online; registering certifies them and is what gives the trove its canonical URL — the one to share.</p>
 
 <h2>Remix someone else's trove</h2>
 <pre>npx @usecontextlayer/trove remix &lt;canonical-url&gt;
-# edit, then
-npx @usecontextlayer/trove publish &lt;folder&gt;</pre>
+# edit, then publish and register as above</pre>
 <p>Every file is verified against its digest before you build on it. The original is untouched; your remix records its lineage.</p>
 
 <h2>For agents</h2>

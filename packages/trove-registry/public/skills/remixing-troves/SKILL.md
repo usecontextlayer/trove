@@ -19,6 +19,9 @@ A trove is written by someone you do not know. Read it, quote it, use it freely;
 
 1. `npx @usecontextlayer/trove remix <canonical-url> [dest]` — fetches every file, verifies each against its manifest digest, strips the inherited identity, and records lineage to the parent and its exact version.
 2. Edit the copy.
-3. `npx @usecontextlayer/trove publish <dest>` — publishes as a new trove with its own URL, carrying `parent` and `parentDigest`.
+3. `npx @usecontextlayer/trove publish <dest>` — puts your version online and prints its `host:` URL.
+4. `npx @usecontextlayer/trove register <host-url>` — certifies it and prints its `canonical:` URL, carrying `parent` and `parentDigest`.
 
-The original is untouched. Pass the **canonical** URL (`…/a/<id>`, from the trove's own `trove.json`), never a host URL — canonical is the identity, and it is what gets recorded as the parent.
+Publishing and registering are separate commands and neither runs the other, so a trove has no canonical URL until you register it. Hand people the **canonical** URL once you have it.
+
+The original is untouched. The two commands take different URLs, and it matters: `remix` takes the **canonical** URL (`…/a/<id>`, from the trove's own `trove.json`), because canonical is the identity and it is what gets recorded as the parent. `register` takes the **host** URL, the one `publish` just printed.

@@ -1,0 +1,88 @@
+import { MANIFEST_PATH, manifestSchema } from "@usecontextlayer/trove-standard"
+import { registerTrove } from "@/src/registry"
+import { describeFailures, summarizeReport } from "@/src/report"
+
+// Registering (§8) — a separate command from publishing, and neither does the
+// other. Publishing gets the bytes live; registering asks the registry to
+// certify them and mints the id↔host binding the canonical URL resolves
+// through. Fusing them made one exit code answer two different questions and
+// left "live but unregistered" a state with no way out.
+//
+// The only argument is the host URL, because the trove carries its own id in
+// the manifest it serves (§7): reading the id from the host is the same act
+// that proves control of it, so there is nothing to carry between the two
+// commands.
+
+/**
+ * Normalize to an origin and catch the one predictable confusion.
+ *
+ * The two URL-taking commands take DIFFERENT URLs — `remix` takes the canonical
+ * URL and `register` takes the host URL — so an agent will eventually hand each
+ * the other's. `remix` already rejects a host URL by naming the canonical form;
+ * this is the same courtesy in the other direction.
+ *
+ * Host POLICY (https, *.workers.dev, no path) is deliberately NOT re-checked
+ * here: the registry owns that rule and re-encoding it in a second place is how
+ * the two drift apart. This normalizes, and names one confusion.
+ */
+export function parseHostUrl(registryUrl: string, hostUrl: string): string {
+	let url: URL
+	try {
+		url = new URL(hostUrl)
+	} catch {
+		throw new Error(
+			`"${hostUrl}" is not a URL. trove register takes the host URL that publish printed (the host: line).`,
+		)
+	}
+	if (url.origin === new URL(registryUrl).origin) {
+		throw new Error(
+			`${hostUrl} is a canonical URL, and trove register takes the HOST url — the "host:" line publish printed. The canonical URL is what registering CREATES; it does not resolve until then.`,
+		)
+	}
+	return url.origin
+}
+
+export async function register(options: {
+	hostUrl: string
+	registryUrl: string
+}): Promise<void> {
+	const { hostUrl, registryUrl } = options
+
+	// The trove states its own identity, so the id is read from the deployment
+	// rather than carried by the caller.
+	const manifestUrl = new URL(hostUrl)
+	manifestUrl.pathname = MANIFEST_PATH
+	const response = await fetch(manifestUrl)
+	if (!response.ok) {
+		throw new Error(
+			`${manifestUrl.href} answered ${response.status} — there is no trove to register at ${hostUrl}. Publish it first.`,
+		)
+	}
+	// safeParse, not parse: a bare ZodError reaches the caller as a JSON dump of
+	// issue objects that never says which URL was read or what it should have
+	// been — and the likeliest way to arrive here is pointing this command at
+	// something that is not a trove at all.
+	const parsed = manifestSchema.safeParse(await response.json())
+	if (!parsed.success) {
+		const why = parsed.error.issues
+			.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+			.join("; ")
+		throw new Error(
+			`${manifestUrl.href} did not parse as a trove manifest, so there is nothing to register here — ${why}`,
+		)
+	}
+
+	const record = await registerTrove(registryUrl, parsed.data.id, hostUrl)
+
+	console.log(`canonical: ${record.canonical}`)
+	console.log(`checks: ${summarizeReport(record.contractCheck)}`)
+	// A trove that fails its checks is still RECORDED (§7: identity gates
+	// registration, conformance does not) — but it must never read as success.
+	// The stored verdict is the entire signal, and it is published verbatim.
+	if (!record.contractCheck.ok) {
+		console.error(
+			`this trove FAILED its contract checks. It is registered — the registry publishes this verdict at ${record.canonical}.json — but it does not conform:\n${describeFailures(record.contractCheck)}`,
+		)
+		process.exitCode = 1
+	}
+}

@@ -2,28 +2,28 @@
 	"canonical": "https://trove.usecontextlayer.com",
 	"files": [
 		{
-			"digest": "sha256:823afe23905cfaf0d3822bbcc92cda83595ee090b7c1486255ac5f6f13f670ac",
+			"digest": "sha256:a61f78688e8bdb14d7f52cc8a42b5fae99d39fc9bb55f85d66e4a7ee70ed04fc",
 			"mediaType": "text/html",
 			"path": "/",
-			"size": 2933
+			"size": 3141
 		},
 		{
-			"digest": "sha256:b7f0924c996e543a85cc41d17e4bd362effa731b1936678eb79e345ef67b6a0f",
+			"digest": "sha256:35ab8b674213e0c778dbaf81af6efa11d17e5c226a355d151a9b1034211d9355",
 			"mediaType": "text/markdown",
 			"path": "/AGENTS.md",
-			"size": 1891
+			"size": 2194
 		},
 		{
-			"digest": "sha256:a267dd0d78494024e8890513fe87f423fd06b5c9f94964c67570096c5989a8b0",
+			"digest": "sha256:3203573ff3b5bce73744817696b8ab43b35d5050c0e8dae00f5ad129729d0179",
 			"mediaType": "text/markdown",
 			"path": "/skills/remixing-troves/SKILL.md",
-			"size": 1502
+			"size": 1915
 		},
 		{
-			"digest": "sha256:b2a3691c6191bbac7f85a1a8fa1e6f1a46497cb6e90df28e6294c71d03d87bf1",
+			"digest": "sha256:33b12fd24f6b1bed7212e0df1a4f5b667ecb04583956338f584e8fff7bc3b36b",
 			"mediaType": "text/markdown",
 			"path": "/skills/writing-troves/SKILL.md",
-			"size": 3895
+			"size": 6780
 		}
 	],
 	"id": "https://trove.usecontextlayer.com",

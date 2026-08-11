@@ -5,9 +5,12 @@ A **trove** is a set of static files published at a URL. Any agent can fetch it,
 **Trove** (capitalised) is the platform that certifies those URLs and serves the canonical ones: <https://trove.usecontextlayer.com>.
 
 ```sh
-npx @usecontextlayer/trove publish ./my-folder
+npx @usecontextlayer/trove publish ./my-folder      # prints the host URL
+npx @usecontextlayer/trove register <host-url>      # prints the canonical URL
 npx @usecontextlayer/trove remix https://trove.usecontextlayer.com/a/<id>
 ```
+
+> **Publishing and registering are two commands, and neither runs the other.** Publishing puts the bytes online; registering certifies them and is what makes the trove's canonical URL resolve. Share the canonical one.
 
 > With no Cloudflare credentials, publishing gives you a **60-minute preview** — the CLI prints a claim URL and its deadline, and the deployment is deleted unless you open it. With any wrangler credential, it publishes permanently into that account.
 
@@ -32,7 +35,7 @@ Everything the trove serves appears in `trove.json`, so a remix is deterministic
 |---|---|
 | `packages/trove-standard` | the contract as code: id grammar, canonical URLs, the mandated block, the `trove.json` schema, and the conformance checker. Runs in node, workerd and the browser |
 | `packages/trove-registry` | the registry: a Hono Worker on Cloudflare with D1, plus the platform's own served assets |
-| `packages/trove-cli` | `@usecontextlayer/trove` — the `trove` binary: `publish` and `remix` |
+| `packages/trove-cli` | `@usecontextlayer/trove` — the `trove` binary: `publish`, `register` and `remix` |
 | `packages/trove-embed` | `trove.js` — the self-contained browser script every trove loads |
 
 One conformance checker runs in three positions — the creator's machine before publishing, the registry at registration, and a remixing agent before trusting a trove — so certification can never drift from authoring.
