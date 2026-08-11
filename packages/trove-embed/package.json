@@ -1,0 +1,12 @@
+{
+	"name": "@usecontextlayer/trove-embed",
+	"private": true,
+	"scripts": {
+		"build": "npx tsdown",
+		"clean": "rm -rf dist *.tsbuildinfo",
+		"dev:watch": "npx tsdown --watch",
+		"tsc": "npx tsc -b tsconfig.json"
+	},
+	"type": "module",
+	"version": "0.1.0"
+}

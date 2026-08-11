@@ -6,6 +6,7 @@
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.21.0",
+		"@usecontextlayer/trove-embed": "workspace:*",
 		"better-sqlite3": "^12.11.1",
 		"commander": "^15.0.0",
 		"kysely-codegen": "^0.20.0",
@@ -15,10 +16,10 @@
 	"name": "@usecontextlayer/trove-registry",
 	"private": true,
 	"scripts": {
-		"build": "true",
-		"clean": "rm -rf dist .wrangler *.tsbuildinfo",
-		"deploy": "npx wrangler deploy",
-		"dev": "npx wrangler dev",
+		"build": "cp ../trove-embed/dist/trove.js public/trove.js",
+		"clean": "rm -rf .wrangler public/trove.js *.tsbuildinfo",
+		"deploy": "pnpm run build && npx wrangler deploy",
+		"dev": "pnpm run build && npx wrangler dev",
 		"manage": "npx tsx manage.ts",
 		"test": "npx vitest run --config vitest.config.ts",
 		"tsc": "npx tsc -b tsconfig.json && npx tsc -p tsconfig.node.json",

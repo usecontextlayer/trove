@@ -10,6 +10,10 @@ dist-types/
 .wrangler/
 .dev.vars
 
+# Built copy of trove-embed's dist/trove.js, staged into the registry's assets
+# dir by its build script.
+packages/trove-registry/public/trove.js
+
 .DS_Store
 
 .codegraph/
