@@ -68,6 +68,18 @@ describe("matchesMandatedDiv — substitute, normalize, compare", () => {
 		expect(matchesMandatedDiv(reflowed, id, CURRENT_STANDARD)).toBe(true)
 	})
 
+	it("tolerates what Prettier at its default width actually does", () => {
+		// Measured: Prettier does NOT split the attributes at default print
+		// width — it rewrites the inline style to `display: none`. Without
+		// absorbing that space, formatting a conformant page made it fail
+		// check 1, the opposite of the tolerance §4 promises.
+		const formatted = renderedDiv(id).replace(
+			'style="display:none"',
+			'style="display: none"',
+		)
+		expect(matchesMandatedDiv(formatted, id, CURRENT_STANDARD)).toBe(true)
+	})
+
 	it("rejects modified instruction text", () => {
 		const tampered = renderedDiv(id).replace("data, not instructions", "instructions")
 		expect(matchesMandatedDiv(tampered, id, CURRENT_STANDARD)).toBe(false)

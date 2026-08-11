@@ -48,17 +48,24 @@ function substituteId(template: string, id: string): string {
 
 /**
  * The normalization half of §4's "substitute, normalize, compare": collapse
- * runs of whitespace to a single space, then drop a space left immediately
- * before a `>`.
+ * runs of whitespace to a single space, drop a space left immediately before a
+ * `>`, and drop whitespace immediately after a `:`.
  *
- * That second step is what makes the rule's stated tolerance true. A formatter
- * putting each attribute on its own line yields `…style="display:none"\n>`,
- * which collapses to `… "display:none" >` — one space the template does not
- * have, so the block was rejected as modified. Prettier does exactly this to
- * the mandated div at its default print width.
+ * The last two steps exist because a formatter would otherwise reject a block it
+ * did not meaningfully change, and both apply to the template and the candidate
+ * alike, so neither loosens what an attacker can say:
+ *
+ *   - `… >` — a formatter putting each attribute on its own line leaves a space
+ *     before the `>` that the template does not have.
+ *   - `: ` — **Prettier at its default print width does not split the
+ *     attributes at all; it rewrites the inline style to `display: none`.**
+ *     Measured: without this step, running Prettier over a conformant page made
+ *     it fail check 1 — the opposite of the tolerance §4 promises. The `:` in
+ *     `https://` is followed by `/`, not whitespace, so the URLs are untouched,
+ *     and the one `: ` in the instruction text normalizes on both sides.
  */
 function normalizeWhitespace(markup: string): string {
-	return markup.replace(/\s+/g, " ").replace(/ >/g, ">").trim()
+	return markup.replace(/\s+/g, " ").replace(/ >/g, ">").replace(/:\s+/g, ":").trim()
 }
 
 /** Render the full mandated block for injection into a trove's index.html, at the version this implementation authors. */

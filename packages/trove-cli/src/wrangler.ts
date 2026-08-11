@@ -165,12 +165,23 @@ export async function waitUntilServing(
 	const deadline = Date.now() + timeoutMs
 	let last = "no response yet"
 	while (Date.now() < deadline) {
-		const response = await fetch(new URL("/", hostUrl))
-		if (response.ok) {
-			return
+		// A transport failure is a not-serving-yet OBSERVATION, not the end of
+		// the poll. A fresh anonymous deploy lands on a brand-new workers.dev
+		// slug, so DNS may not resolve for the first second or two and `fetch`
+		// REJECTS rather than returning a status — which ended the loop 9ms into
+		// a 60s budget and reported a healthy deploy as broken. §8: poll until it
+		// serves or until the deadline; do not classify. The deadline is the one
+		// loud failure point.
+		try {
+			const response = await fetch(new URL("/", hostUrl))
+			if (response.ok) {
+				return
+			}
+			const body = await response.text()
+			last = `${response.status} (${response.headers.get("content-type") ?? "no content type"}): ${body.slice(0, 80)}`
+		} catch (error) {
+			last = `transport error: ${String(error)}`
 		}
-		const body = await response.text()
-		last = `${response.status} (${response.headers.get("content-type") ?? "no content type"}): ${body.slice(0, 80)}`
 		await new Promise((resolve) => setTimeout(resolve, pollMs))
 	}
 	throw new Error(

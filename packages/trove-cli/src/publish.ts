@@ -1,7 +1,12 @@
 import { mkdtempSync, writeFileSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { checkTrove, httpReader, mintId } from "@usecontextlayer/trove-standard"
+import {
+	type ContractCheckReport,
+	checkTrove,
+	httpReader,
+	mintId,
+} from "@usecontextlayer/trove-standard"
 import { assembleTrove } from "@/src/assemble"
 import { localReader } from "@/src/local-reader"
 import { registerTrove } from "@/src/registry"
@@ -17,11 +22,9 @@ import {
 // the DEPLOYED bytes, register, print. Minting locally is what keeps this to
 // one deploy and one registry call.
 
-function describeFailures(report: {
-	checks: { detail?: string; name: string; ok: boolean }[]
-}): string {
+function describeFailures(report: ContractCheckReport): string {
 	return report.checks
-		.filter((check) => !check.ok)
+		.filter((check) => check.status === "failed")
 		.map((check) => `  ${check.name}: ${check.detail ?? "failed"}`)
 		.join("\n")
 }

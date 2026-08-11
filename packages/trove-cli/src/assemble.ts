@@ -170,10 +170,23 @@ export function assembleTrove(options: AssembleOptions): TroveManifest {
 	}
 
 	const sourceIndex = path.join(sourceDir, "index.html")
-	const indexHtml = existsSync(sourceIndex)
-		? injectBlock(readFileSync(sourceIndex, "utf8"), id)
-		: generateIndexHtml(sourceDir, id)
-	writeFileSync(path.join(destDir, "index.html"), indexHtml)
+	const destIndex = path.join(destDir, "index.html")
+	if (existsSync(sourceIndex)) {
+		// index.html is the ONE file that round-trips through a JS string —
+		// every other file is copied byte-for-byte. Reading it as "utf8"
+		// replaced each non-UTF-8 byte with U+FFFD, and the manifest digest was
+		// then computed over the mojibake, so an ISO-8859-1 page shipped
+		// corrupted with all seven checks green. latin1 maps one byte to one
+		// code unit in both directions, so any encoding survives; the injected
+		// block is pure ASCII and parse5's offsets stay byte offsets.
+		writeFileSync(
+			destIndex,
+			injectBlock(readFileSync(sourceIndex, "latin1"), id),
+			"latin1",
+		)
+	} else {
+		writeFileSync(destIndex, generateIndexHtml(sourceDir, id))
+	}
 
 	// The manifest lists what returns 200 at the path that returns it: the index
 	// page as "/", never "/index.html" (the host 307s the latter), and neither

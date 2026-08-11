@@ -43,15 +43,44 @@ export type ContractCheckName =
 	| "caps"
 	| "anti-cloaking"
 
+/**
+ * Three outcomes, not two.
+ *
+ * `failed` covers both "ran and did not pass" and "could not run because the
+ * trove did not serve what the check needed" — the second is a property of the
+ * trove, so it is a failure, and §6.1's rule that a check verifying nothing must
+ * never show a green tick is about exactly that case.
+ *
+ * `not-checked` is a different thing entirely: THIS POSITION does not run this
+ * check, which says nothing about the trove. Collapsing the two into one boolean
+ * made a conformant trove report `ok: false` at the registry — where checks 4
+ * and 6 are deliberately not run — so no trove could ever earn a passing
+ * verdict.
+ */
+export type ContractCheckStatus = "ok" | "failed" | "not-checked"
+
 export interface ContractCheck {
 	detail?: string
 	name: ContractCheckName
-	ok: boolean
+	status: ContractCheckStatus
 }
 
 export interface ContractCheckReport {
 	checks: ContractCheck[]
+	/** True when nothing FAILED. A not-checked check does not make a trove non-conformant; it makes the report narrower, which the per-check detail says. */
 	ok: boolean
+}
+
+/** A check that ran: `detail` present means it failed. */
+function verdict(name: ContractCheckName, detail: string | undefined): ContractCheck {
+	return detail === undefined
+		? { name, status: "ok" }
+		: { detail, name, status: "failed" }
+}
+
+/** A check this position does not run. */
+function notChecked(name: ContractCheckName, detail: string): ContractCheck {
+	return { detail, name, status: "not-checked" }
 }
 
 export interface CheckTroveResult {
@@ -139,8 +168,17 @@ function findHiddenTextViolations(
 			continue
 		}
 		const style = element.attrs.style ?? ""
+		// The property name is anchored to the start of a declaration, so a
+		// custom property whose NAME merely ends in `display` no longer counts:
+		// `--display:none` and `--icon-display:none` are ordinary CSS, and
+		// flagging them hard-aborted a publish with no override — the same
+		// false-positive class as the decorative `aria-hidden` icon.
+		//
+		// This matches the declaration as WRITTEN. CSS-level obfuscation of the
+		// same declaration (a comment inside it, an identifier escape) is not
+		// detected, and is out of scope at v1 alongside classes and stylesheets.
 		const hidden =
-			/display\s*:\s*none|visibility\s*:\s*hidden/i.test(style) ||
+			/(^|;)\s*(display\s*:\s*none|visibility\s*:\s*hidden)/i.test(style) ||
 			Object.hasOwn(element.attrs, "hidden")
 		if (hidden) {
 			violations.push(element.source?.markup.split("\n")[0] ?? `<${element.tagName}>`)
@@ -284,11 +322,7 @@ export async function checkTrove(options: {
 
 	// Check 1 — GET / is 200 text/html carrying both halves of the mandated
 	// block, present and unmodified, with a well-formed id.
-	checks.push({
-		name: "mandated-block",
-		ok: blockDetail === undefined,
-		...(blockDetail === undefined ? {} : { detail: blockDetail }),
-	})
+	checks.push(verdict("mandated-block", blockDetail))
 
 	// Check 2 — the manifest: 200 application/json, schema-valid (the schema
 	// itself enforces canonical-derived-from-id), one identity across every
@@ -302,11 +336,7 @@ export async function checkTrove(options: {
 			manifestDetail = `manifest id ${manifest.id} does not match the mandated block's id ${blockId}`
 		}
 	}
-	checks.push({
-		name: "manifest",
-		ok: manifestDetail === undefined,
-		...(manifestDetail === undefined ? {} : { detail: manifestDetail }),
-	})
+	checks.push(verdict("manifest", manifestDetail))
 
 	// Check 3 — AGENTS.md: 200 text/markdown, non-empty.
 	{
@@ -318,11 +348,7 @@ export async function checkTrove(options: {
 		} else if (new TextDecoder().decode(agents.response.bytes).trim() === "") {
 			detail = `${AGENTS_MD_PATH} is empty`
 		}
-		checks.push({
-			name: "agents-md",
-			ok: detail === undefined,
-			...(detail === undefined ? {} : { detail }),
-		})
+		checks.push(verdict("agents-md", detail))
 	}
 
 	// Check 4 — every path in files[] returns 200 with matching media-type
@@ -330,12 +356,14 @@ export async function checkTrove(options: {
 	// evaluated on the DECLARED manifest before any file is fetched, so they
 	// bound the work rather than describing work already done.
 	if (manifest === null) {
-		checks.push({ detail: "not checked: no valid manifest", name: "files", ok: false })
-		checks.push({ detail: "not checked: no valid manifest", name: "caps", ok: false })
+		// FAILED, not not-checked: the trove did not serve a usable manifest, so
+		// this is a property of the trove.
+		checks.push(verdict("files", "no valid manifest"))
+		checks.push(verdict("caps", "no valid manifest"))
 	} else if (!verifyFiles) {
-		const reason = "not checked: this position does not verify manifest files"
-		checks.push({ detail: reason, name: "files", ok: false })
-		checks.push({ detail: reason, name: "caps", ok: false })
+		const reason = "this position does not verify manifest files"
+		checks.push(notChecked("files", reason))
+		checks.push(notChecked("caps", reason))
 	} else {
 		const declaredBytes = manifest.files.reduce((total, file) => total + file.size, 0)
 		const capFailures: string[] = []
@@ -347,18 +375,14 @@ export async function checkTrove(options: {
 				`${declaredBytes} declared bytes exceeds the ${MAX_TOTAL_BYTES}-byte cap`,
 			)
 		}
-		checks.push({
-			name: "caps",
-			ok: capFailures.length === 0,
-			...(capFailures.length === 0 ? {} : { detail: capFailures.join("; ") }),
-		})
+		checks.push(
+			verdict("caps", capFailures.length === 0 ? undefined : capFailures.join("; ")),
+		)
 
 		if (capFailures.length > 0) {
-			checks.push({
-				detail: "not checked: the manifest exceeds the caps",
-				name: "files",
-				ok: false,
-			})
+			// The caps already failed, so the verdict is settled; the files were
+			// genuinely not fetched, which is what bounds the work.
+			checks.push(notChecked("files", "the manifest exceeds the caps"))
 		} else {
 			const failures: string[] = []
 			for (const batch of chunk(manifest.files, 5)) {
@@ -386,18 +410,19 @@ export async function checkTrove(options: {
 					}),
 				)
 			}
-			checks.push({
-				name: "files",
-				ok: failures.length === 0,
-				...(failures.length === 0 ? {} : { detail: failures.slice(0, 5).join("; ") }),
-			})
+			checks.push(
+				verdict(
+					"files",
+					failures.length === 0 ? undefined : failures.slice(0, 5).join("; "),
+				),
+			)
 		}
 	}
 
 	// Check 5 — X-Robots-Tag: noindex on every response actually observed (§5).
 	// Drained from the read cache rather than accumulated as a side effect of
-	// the checks above, so a trove that served nothing reports not-checked
-	// instead of passing for want of a counter-example.
+	// the checks above, so a trove that served nothing FAILS instead of passing
+	// for want of a counter-example.
 	{
 		const observed = await Promise.all(
 			[...cache.entries()].map(async ([path, pending]) => ({ path, ...(await pending) })),
@@ -408,15 +433,11 @@ export async function checkTrove(options: {
 			.map((entry) => entry.path)
 		let detail: string | undefined
 		if (seen.length === 0) {
-			detail = "not checked: no response was obtained"
+			detail = "no response was obtained, so the header was never observed"
 		} else if (misses.length > 0) {
 			detail = `missing noindex on: ${misses.slice(0, 5).join(", ")}`
 		}
-		checks.push({
-			name: "noindex",
-			ok: detail === undefined,
-			...(detail === undefined ? {} : { detail }),
-		})
+		checks.push(verdict("noindex", detail))
 	}
 
 	// Check 7 — anti-cloaking, gating and absolute: hidden text may exist only
@@ -424,22 +445,18 @@ export async function checkTrove(options: {
 	{
 		let detail: string | undefined
 		if (indexElements === null) {
-			detail = "not checked: / was not read as HTML"
+			detail = "/ was not read as HTML, so nothing was scanned"
 		} else {
 			const violations = findHiddenTextViolations(indexElements, mandatedDiv)
 			if (violations.length > 0) {
 				detail = `hidden text outside the mandated block: ${violations.slice(0, 3).join(" ")}`
 			}
 		}
-		checks.push({
-			name: "anti-cloaking",
-			ok: detail === undefined,
-			...(detail === undefined ? {} : { detail }),
-		})
+		checks.push(verdict("anti-cloaking", detail))
 	}
 
 	return {
 		manifest,
-		report: { checks, ok: checks.every((check) => check.ok) },
+		report: { checks, ok: checks.every((check) => check.status !== "failed") },
 	}
 }

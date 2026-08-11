@@ -40,7 +40,8 @@ describe("assembleTrove", () => {
 		// The assembled output passes the standard's own §6.1 checker through the
 		// local adapter — assembly and certification can never drift.
 		const { report } = await checkTrove({ expectedId: id, read: localReader(dest) })
-		expect(report.checks.filter((check) => !check.ok)).toEqual([])
+		expect(report.checks.filter((check) => check.status === "failed")).toEqual([])
+		expect(report.ok).toBe(true)
 
 		// The manifest round-trips through the standard's own schema.
 		expect(manifestSchema.parse(manifest).id).toBe(id)
@@ -243,6 +244,38 @@ describe("assembleTrove", () => {
 		})
 		const html = readFileSync(path.join(dest, "index.html"), "utf8")
 		expect(html).toContain(markup)
+	})
+
+	it("preserves a non-UTF-8 index.html byte for byte", () => {
+		// index.html is the one file that round-trips through a JS string.
+		// Reading it as "utf8" replaced every non-UTF-8 byte with U+FFFD, and
+		// the manifest digest was then computed over the mojibake — so a
+		// corrupted page shipped with all seven checks green.
+		const dir = mkdtempSync(path.join(os.tmpdir(), "trove-test-latin1-"))
+		writeFileSync(path.join(dir, "AGENTS.md"), AGENTS)
+		// "café crème" in ISO-8859-1: 0xe9 and 0xe8 are not valid UTF-8.
+		const source = Buffer.concat([
+			Buffer.from(
+				'<!doctype html>\n<html><head><meta charset="iso-8859-1"></head><body><p>caf',
+			),
+			Buffer.from([0xe9]),
+			Buffer.from(" cr"),
+			Buffer.from([0xe8]),
+			Buffer.from("me</p>\n</body>\n</html>\n"),
+		])
+		writeFileSync(path.join(dir, "index.html"), source)
+
+		const dest = destDir()
+		const manifest = assembleTrove({ destDir: dest, id: mintId(), sourceDir: dir })
+		const out = readFileSync(path.join(dest, "index.html"))
+		expect(out.includes(Buffer.from([0xe9]))).toBe(true)
+		expect(out.includes(Buffer.from([0xe8]))).toBe(true)
+		expect(out.includes(Buffer.from("�", "utf8"))).toBe(false)
+
+		// And the manifest describes the bytes that are actually on disk.
+		const entry = manifest.files.find((file) => file.path === "/")
+		expect(entry?.size).toBe(out.byteLength)
+		expect(entry?.digest).toBe(`sha256:${createHash("sha256").update(out).digest("hex")}`)
 	})
 
 	it("escapes markup in the AGENTS.md heading it lifts into the generated page", () => {

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { describe, expect, it } from "vitest"
 import {
 	AGENTS_MD_PATH,
+	type ContractCheck,
 	canonicalUrlForId,
 	checkTrove,
 	INDEX_PATH,
@@ -93,8 +94,14 @@ ${renderMandatedBlock(id)}
 	}
 }
 
-function failing(checks: { name: string; ok: boolean }[]): string[] {
-	return checks.filter((check) => !check.ok).map((check) => check.name)
+function failing(checks: ContractCheck[]): string[] {
+	return checks.filter((check) => check.status === "failed").map((check) => check.name)
+}
+
+function notChecked(checks: ContractCheck[]): string[] {
+	return checks
+		.filter((check) => check.status === "not-checked")
+		.map((check) => check.name)
 }
 
 describe("checkTrove", () => {
@@ -225,9 +232,7 @@ describe("checkTrove", () => {
 			},
 		})
 		expect(failing(report.checks)).toContain("caps")
-		expect(report.checks.find((check) => check.name === "files")?.detail).toContain(
-			"not checked",
-		)
+		expect(notChecked(report.checks)).toContain("files")
 		expect([...readPaths].sort()).toEqual(
 			[AGENTS_MD_PATH, INDEX_PATH, MANIFEST_PATH].sort(),
 		)
@@ -273,6 +278,18 @@ describe("checkTrove", () => {
 		// it hard-failed the standard decorative-icon idiom.
 		["a decorative aria-hidden icon", '<svg aria-hidden="true" width="10"></svg>'],
 		["aria-hidden on text", '<p aria-hidden="true">visible to the eye</p>'],
+		// The property name is anchored to a declaration boundary, so a custom
+		// property whose name merely ends in `display` is ordinary CSS, not a
+		// hidden element. Flagging these hard-aborted a publish with no override.
+		["a custom property named --display", '<p style="--display:none">visible</p>'],
+		[
+			"a custom property ending in -display",
+			'<p style="--icon-display:none">visible</p>',
+		],
+		[
+			"display inside a quoted value",
+			`<p style="font-family:'display:none'">visible</p>`,
+		],
 	])("does not flag %s", async (_label, markup) => {
 		const id = mintId()
 		const responses = conformantTrove(id)
@@ -316,11 +333,14 @@ describe("checkTrove", () => {
 				throw new Error("network down")
 			},
 		})
+		// FAILED, not not-checked. These checks were attempted and the trove gave
+		// them nothing to verify — that is a property of the trove, which is
+		// exactly the case §6.1's never-a-green-tick rule is written for.
+		expect(report.ok).toBe(false)
 		expect(failing(report.checks)).toHaveLength(7)
+		expect(notChecked(report.checks)).toEqual([])
 		for (const name of ["noindex", "anti-cloaking"]) {
-			expect(report.checks.find((check) => check.name === name)?.detail).toContain(
-				"not checked",
-			)
+			expect(report.checks.find((check) => check.name === name)?.detail).toBeTruthy()
 		}
 	})
 
@@ -360,7 +380,11 @@ describe("checkTrove", () => {
 		expect(failing(report.checks)).not.toContain("mandated-block")
 	})
 
-	it("reports files and caps as not-checked when the position does not verify files", async () => {
+	it("still passes a conformant trove when the position does not verify files", async () => {
+		// A check this position does not RUN is not a failure of the trove.
+		// Collapsing the two into one boolean made every trove register as
+		// "failed its last conformance check" — there was no input that could
+		// produce a passing verdict at the registry.
 		const id = mintId()
 		const underlying = memoryReader(conformantTrove(id))
 		const readPaths: string[] = []
@@ -372,13 +396,26 @@ describe("checkTrove", () => {
 			},
 			verifyFiles: false,
 		})
-		expect(failing(report.checks)).toEqual(["files", "caps"])
-		expect(report.checks.find((check) => check.name === "files")?.detail).toContain(
-			"not checked",
-		)
+		expect(report.ok).toBe(true)
+		expect(failing(report.checks)).toEqual([])
+		expect(notChecked(report.checks)).toEqual(["files", "caps"])
 		expect([...readPaths].sort()).toEqual(
 			[AGENTS_MD_PATH, INDEX_PATH, MANIFEST_PATH].sort(),
 		)
+	})
+
+	it("still fails a broken trove when the position does not verify files", async () => {
+		// The narrowed position must not become a way to launder a bad trove.
+		const id = mintId()
+		const responses = conformantTrove(id)
+		delete responses[AGENTS_MD_PATH]
+		const { report } = await checkTrove({
+			expectedId: id,
+			read: memoryReader(responses),
+			verifyFiles: false,
+		})
+		expect(report.ok).toBe(false)
+		expect(failing(report.checks)).toContain("agents-md")
 	})
 
 	it("names the real cause when the manifest id is malformed", async () => {

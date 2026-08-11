@@ -36,7 +36,11 @@ program
 		const destDir = dest ?? `./trove-remix-${canonicalUrl.slice(-24, -16)}`
 		const { fileCount } = await remixTrove({ canonicalUrl, destDir })
 		console.log(`${fileCount} files verified and copied to ${destDir}`)
-		console.log(`edit, then: trove publish ${destDir}`)
+		// The scoped npx form, never a bare `trove` — an agent that got here via
+		// `npx @usecontextlayer/trove remix …` has no `trove` on PATH, and the
+		// obvious improvisation after "command not found" is the unscoped `trove`
+		// package on npm, which belongs to someone else and would be executed.
+		console.log(`edit, then: npx @usecontextlayer/trove publish ${destDir}`)
 	})
 
 await program.parseAsync()

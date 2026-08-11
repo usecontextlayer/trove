@@ -12,6 +12,7 @@ export {
 	type ContractCheck,
 	type ContractCheckName,
 	type ContractCheckReport,
+	type ContractCheckStatus,
 	checkTrove,
 	httpReader,
 	MAX_FILES,
