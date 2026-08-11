@@ -30,10 +30,22 @@ function init(): void {
 	const start = (): void => {
 		const div = document.querySelector("div[data-trove]")
 		const id = div?.getAttribute("data-trove") ?? ""
-		if (!div || !ID_PATTERN.test(id)) {
+		if (!div) {
 			return
 		}
-		render(registryOrigin, id, (div.textContent ?? "").trim())
+		const instructions = (div.textContent ?? "").trim()
+		// Platform detection is by LOCATION, never by the div's claim — a page
+		// can fake data-trove="https://trove.usecontextlayer.com", but it cannot
+		// fake being served from the registry origin. On Trove's own pages the
+		// drawer renders with no registry row to resolve and no badge to earn.
+		if (window.location.origin === registryOrigin) {
+			render(registryOrigin, null, instructions)
+			return
+		}
+		if (!ID_PATTERN.test(id)) {
+			return
+		}
+		render(registryOrigin, id, instructions)
 	}
 
 	if (document.readyState === "loading") {
@@ -43,8 +55,9 @@ function init(): void {
 	}
 }
 
-function render(registryOrigin: string, id: string, instructions: string): void {
-	const canonical = `${registryOrigin}/a/${id}`
+/** `id` is null on the platform's own page (the special id — its URL). */
+function render(registryOrigin: string, id: string | null, instructions: string): void {
+	const canonical = id === null ? registryOrigin : `${registryOrigin}/a/${id}`
 
 	const host = document.createElement("div")
 	const root = host.attachShadow({ mode: "closed" })
@@ -118,6 +131,11 @@ function render(registryOrigin: string, id: string, instructions: string): void 
 	)
 
 	document.body.appendChild(host)
+
+	if (id === null) {
+		status.textContent = "This is Trove itself"
+		return
+	}
 
 	void fetch(`${registryOrigin}/a/${id}.json`)
 		.then(async (response) => {

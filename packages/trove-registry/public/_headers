@@ -1,5 +1,6 @@
-# Applies to static asset responses only (including env.ASSETS.fetch() results).
-# Worker-constructed responses set the same header in code — _headers never
-# reaches them, so the standard's unconditional noindex needs both.
-/*
-  X-Robots-Tag: noindex
+# The PLATFORM's own pages are indexable (owner-ruled: "fuck the no-index
+# lockin — trove.usecontextlayer.com is indexed"). The standard's unconditional
+# noindex (§5) binds ARTIFACTS, and each artifact's generated _headers carries
+# it; the platform is an artifact in spirit, not in exactness. The registry's
+# Worker routes (/a/*, /register) keep noindex in code — they are
+# artifact-adjacent surfaces, and _headers never reaches Worker responses.

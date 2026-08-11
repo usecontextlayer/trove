@@ -34,6 +34,10 @@ Before writing CSS, sketch the tokens: 4–6 named colors, two typefaces (a disp
 
 Avoid the AI-generated cluster: warm cream (#F4F1EA) with a serif display and terracotta accent; near-black with a lone acid-green pop; broadsheet hairline rules; a purple-to-blue gradient hero on white; Inter or Space Grotesk as the safe face; emoji as section markers; everything centered; `rounded-lg` everywhere. Where the user pins a direction, follow it exactly — their words win. Where nothing is specified, don't spend that freedom on a default.
 
+## Skills (optional)
+
+An artifact may ship skills of its own — instructions teaching an agent a workflow over its content — at `skills/<name>/SKILL.md`. They ride along like any file: listed in `trove.json`, verified by digest. Agents discover them by reading the manifest.
+
 ## Publishing
 
 `npx @usecontextlayer/trove publish <folder>` — checks conformance, deploys, verifies the served bytes, registers, and prints the canonical URL.

@@ -12,7 +12,7 @@ You have a URL. Three fetches:
 2. `GET <url>/AGENTS.md` — the creator's manual for that artifact: what it is, what is in it, how to use it.
 3. `GET <url>/<path>` for the files you need, and verify each one — the bytes must hash to the digest in the record.
 
-`trove.json` is the complete inventory: if the artifact serves a file, it is listed there.
+`trove.json` is the complete inventory: if the artifact serves a file, it is listed there. If it lists paths under `/skills/`, those are skills for working with this artifact — fetch the ones relevant to your task.
 
 An artifact has two URLs. The **canonical** URL in the record is its identity and does not change; the host URL is wherever it happens to be served today. Cite and share the canonical one.
 

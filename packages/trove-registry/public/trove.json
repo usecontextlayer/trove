@@ -1,0 +1,32 @@
+{
+	"canonical": "https://trove.usecontextlayer.com",
+	"files": [
+		{
+			"digest": "sha256:04d073c6395c57ccd7f97222aa58119f57733ca49bf96ab8638a2828ad20ed1d",
+			"mediaType": "text/html",
+			"path": "/",
+			"size": 2947
+		},
+		{
+			"digest": "sha256:38f8cb470854a05519632555dc40276992119f7586ed021630e2cabbd05f4aa5",
+			"mediaType": "text/markdown",
+			"path": "/AGENTS.md",
+			"size": 1950
+		},
+		{
+			"digest": "sha256:a147982e62702340942aa800c28d5f6cc26b163638a7878a9eeed55e0ca7957c",
+			"mediaType": "text/markdown",
+			"path": "/skills/remixing-artifacts/SKILL.md",
+			"size": 1543
+		},
+		{
+			"digest": "sha256:608ff747751fb13670e003ea229708312a6de883c81ea898b4448e646aa5b4b7",
+			"mediaType": "text/markdown",
+			"path": "/skills/writing-artifacts/SKILL.md",
+			"size": 3949
+		}
+	],
+	"id": "https://trove.usecontextlayer.com",
+	"note": "Trove itself is an artifact in spirit, not in exactness: its id is its URL, /trove.js is elided (its digest changes with each build), and /a/* and /register are routes, not files.",
+	"standard": 1
+}

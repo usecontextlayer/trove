@@ -5,9 +5,11 @@
 		"binding": "ASSETS",
 		"directory": "./public/",
 
-		// No .html files served here, but pin it so nobody's future index.html
-		// silently introduces trailing-slash redirects.
-		"html_handling": "none",
+		// The platform serves its landing page at "/", so index.html must resolve
+		// there — "none" would require the exact file path and 404 the root. This
+		// is the same handling artifacts get from their host (the /index.html →
+		// / 307 included).
+		"html_handling": "auto-trailing-slash",
 
 		// MUST stay "none". Anything else, combined with the run_worker_first
 		// array, makes the asset worker claim every unmatched path and the Worker
