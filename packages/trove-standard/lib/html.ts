@@ -170,6 +170,14 @@ export function cutRanges(
 ): string {
 	const extended = ranges
 		.map(({ end, start }) => {
+			// An inverted range would emit html.slice(0, start) and then resume at
+			// end < start, DUPLICATING the bytes between them — silent corruption
+			// in a function whose whole job is byte-exact editing. Parser offsets
+			// are never inverted, so this cannot fire from the real callers; it
+			// fails loudly rather than quietly if that ever stops being true.
+			if (end < start) {
+				throw new Error(`inverted source range: start ${start} is after end ${end}`)
+			}
 			let stop = end
 			while (stop < html.length && /\s/.test(html.charAt(stop))) {
 				stop += 1

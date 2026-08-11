@@ -1,0 +1,80 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Resolve and pack the tarball, but do not publish
+        type: boolean
+        default: true
+
+# release.yml publishes the CLI to npm. It is the ONLY path that publishes:
+# NPM_TOKEN lives in this repository's Actions secrets and never on a laptop, so
+# a release is always reproducible from a tag and never from someone's shell.
+#
+# check.yml stays the single home of verification; this workflow re-runs the same
+# turbo invocation rather than trusting that the tagged commit was already green,
+# because a tag can point at any commit.
+concurrency:
+  # Per-tag, never cancelled: a half-cancelled publish is worse than a slow one.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Required for npm provenance: npm exchanges this OIDC token for a signed
+  # attestation linking the tarball to this workflow and commit.
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish @usecontextlayer/trove to npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-workspace
+
+      - name: Assert the tag matches the package version
+        # A tag that disagrees with the manifest publishes a version nobody can
+        # find from the git history. Fail before anything is built.
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./packages/trove-cli/package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag v$tag does not match packages/trove-cli/package.json version $pkg"
+            exit 1
+          fi
+          echo "publishing version $pkg"
+
+      - name: Lint, typecheck, test, and build
+        run: npx turbo run tsc test format.verify build
+
+      - name: Assert clean working tree
+        run: git diff --exit-code
+
+      - name: Pack and show what would ship
+        # `files: ["dist"]` means the tarball is the built CLI and nothing else.
+        # Printing the contents makes an accidental inclusion visible in the log
+        # rather than on the registry.
+        working-directory: packages/trove-cli
+        run: |
+          pnpm pack --pack-destination /tmp
+          tar -tzf /tmp/*.tgz | sort
+
+      - name: Publish
+        if: ${{ github.event_name == 'push' || !inputs.dry-run }}
+        working-directory: packages/trove-cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: |
+          npm config set //registry.npmjs.org/:_authToken "$NODE_AUTH_TOKEN"
+          # pnpm publish rewrites the `workspace:` protocol in the manifest to a
+          # real version; npm publish would ship it verbatim. --no-git-checks
+          # because the checkout is a detached tag, which pnpm otherwise rejects.
+          pnpm publish --access public --no-git-checks

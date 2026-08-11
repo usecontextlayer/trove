@@ -5,6 +5,7 @@
 	"dependencies": {
 		"wrangler": "4.120.1"
 	},
+	"description": "Publish and remix troves — folders of static files served at a URL any agent can fetch, verify, and remix.",
 	"devDependencies": {
 		"@usecontextlayer/trove-standard": "workspace:*",
 		"commander": "^15.0.0",
@@ -20,7 +21,25 @@
 	"files": [
 		"dist"
 	],
+	"homepage": "https://trove.usecontextlayer.com",
+	"keywords": [
+		"agents",
+		"ai",
+		"cloudflare",
+		"publishing",
+		"static-site",
+		"trove"
+	],
+	"license": "MIT",
 	"name": "@usecontextlayer/trove",
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"directory": "packages/trove-cli",
+		"type": "git",
+		"url": "git+https://github.com/usecontextlayer/trove.git"
+	},
 	"scripts": {
 		"build": "npx tsdown",
 		"clean": "rm -rf dist *.tsbuildinfo",
