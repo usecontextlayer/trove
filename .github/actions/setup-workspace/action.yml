@@ -1,0 +1,44 @@
+name: Setup workspace
+description: >
+  Installs the toolchain (mise, which pins node + pnpm from mise.toml), restores
+  the pnpm store and turbo caches, and installs dependencies. The single source
+  of truth for the cache keys, so every workflow that sets up the workspace uses
+  byte-identical keys and can restore each other's caches.
+runs:
+  using: composite
+  steps:
+    # pnpm comes from mise (mise.toml pins it to the root package.json
+    # `packageManager` version) — mise is the one pnpm source; corepack stays unused.
+    - uses: jdx/mise-action@v4
+    - name: Resolve pnpm store path
+      shell: bash
+      run: echo "PNPM_STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+    - uses: actions/cache@v4
+      # pnpm content-addressed store, keyed on pnpm-lock.yaml so it self-refreshes
+      # when deps change; restore-keys prefix-matches the newest prior store.
+      # `pnpm install --frozen-lockfile` then materializes node_modules from the
+      # warm store via hardlinks.
+      with:
+        path: ${{ env.PNPM_STORE_PATH }}
+        key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-store-${{ runner.os }}-${{ runner.arch }}-
+    - uses: actions/cache@v4
+      # Turborepo task cache (turbo v2 default dir: .turbo/cache). Without this it
+      # is never persisted across runs and every CI run re-executes from cold.
+      # Per-commit key (GH cache entries are immutable, so a static key would write
+      # once and rot) with a prefix restore-key to seed from the newest prior
+      # .turbo. A coarse key is correct because turbo content-hashes its own task
+      # inputs internally — it only replays artifacts whose hashes still match.
+      with:
+        path: .turbo
+        key: turbo-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+        restore-keys: |
+          turbo-${{ runner.os }}-${{ runner.arch }}-
+    - name: Install dependencies
+      # CI-strict: `--frozen-lockfile` requires pnpm-lock.yaml to be in sync with
+      # the manifests, so dependency drift fails the build. Build/postinstall
+      # scripts run only for the `onlyBuiltDependencies` allowlist in
+      # pnpm-workspace.yaml.
+      shell: bash
+      run: pnpm install --frozen-lockfile

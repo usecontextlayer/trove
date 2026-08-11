@@ -1,0 +1,41 @@
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# check.yml is the single home of ALL verification. It runs on every PR and every
+# push to main and answers exactly one question: is this commit sound and do its
+# artifacts build?
+concurrency:
+  # Per-ref: a new push to a PR branch cancels its own superseded run. github.ref
+  # is distinct per branch / PR / tag, so this can never cancel a main run.
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  # Read-only: check builds and tests but never touches a registry or a secret.
+  contents: read
+
+jobs:
+  checks:
+    name: Checks (format, types, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-workspace
+      - name: Lint, typecheck, test, and build
+        # ONE turbo invocation runs the whole workspace graph, sharing a single
+        # ^build. format.verify is the read-only //# root task — it never mutates
+        # the tree, so it cannot race the typecheck/tests reading the same files.
+        #
+        # CI runs the UNIT tier only. The `test:integration:node` tier needs a real
+        # local prerequisite (a live wrangler deploy, a real D1) that CI does not
+        # stand up, so it is opt-in and local-only. Anything that must be covered
+        # in CI therefore belongs in a bare `*.test.ts` or a `*.browser.test.ts`.
+        run: npx turbo run tsc test format.verify build
+      - name: Assert clean working tree
+        # Catches biome drift and any generated file that was not committed.
+        run: git diff --exit-code

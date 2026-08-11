@@ -1,0 +1,14 @@
+packages:
+  - 'packages/*'
+
+# A node below the engines.node floor fails hard at the pnpm boundary instead
+# of WARN-and-proceeding on a toolchain the fleet doesn't run.
+engineStrict: true
+
+# pnpm 10 blocks dependency build/postinstall scripts by default. These are the
+# trusted native/binary-staging deps that must run their install scripts:
+#   esbuild   — installs the platform binary (tsx/vitest)
+#   workerd   — Cloudflare's runtime, staged by wrangler/miniflare
+onlyBuiltDependencies:
+  - esbuild
+  - workerd

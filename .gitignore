@@ -1,0 +1,19 @@
+node_modules/
+packages/*/node_modules/
+.turbo/
+dist/
+dist-types/
+*.tsbuildinfo
+
+# wrangler's local state: the miniflare sandbox, the local D1 sqlite file, and
+# the temporary-account credential file (which holds a plaintext API token).
+.wrangler/
+.dev.vars
+
+.DS_Store
+
+.codegraph/
+.doublecheck/
+.superpowers/
+.playwright-cli/
+.playwright-mcp/

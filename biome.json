@@ -1,0 +1,92 @@
+{
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on",
+				"useSortedKeys": "on"
+			}
+		}
+	},
+	"files": {
+		"ignoreUnknown": true,
+		"includes": [
+			"**",
+			"!!**/node_modules",
+			"!!**/dist",
+			"!!**/.turbo",
+			"!!**/.wrangler",
+			"!!**/worker-configuration.d.ts",
+			"!!**/*.md"
+		]
+	},
+	"formatter": {
+		"attributePosition": "multiline",
+		"enabled": true,
+		"formatWithErrors": true,
+		"lineEnding": "auto",
+		"lineWidth": 90,
+		"useEditorconfig": true
+	},
+	"html": {
+		"formatter": {
+			"indentScriptAndStyle": true
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"arrowParentheses": "always",
+			"bracketSameLine": false,
+			"bracketSpacing": true,
+			"jsxQuoteStyle": "double",
+			"quoteStyle": "double",
+			"semicolons": "asNeeded",
+			"trailingCommas": "all"
+		}
+	},
+	"json": {
+		"formatter": {
+			"enabled": true
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"style": {
+				"noRestrictedImports": {
+					"level": "warn",
+					"options": {
+						"patterns": [
+							{
+								"group": ["./**", "../**", ".", ".."],
+								"message": "Relative imports are disallowed; use the \"@/\" path alias for internal modules."
+							}
+						]
+					}
+				},
+				"useConst": "error",
+				"useImportType": "error"
+			},
+			"suspicious": {
+				"noExplicitAny": "warn"
+			}
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["**/database/models/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": "off"
+					}
+				}
+			}
+		}
+	],
+	"vcs": {
+		"clientKind": "git",
+		"enabled": true,
+		"useIgnoreFile": true
+	}
+}
