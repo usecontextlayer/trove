@@ -195,15 +195,15 @@ describe("checkTrove", () => {
 		expect(failing(report.checks)).toContain("noindex")
 	})
 
-	it("fails caps beyond the file-count ceiling", async () => {
+	it("fails caps from the DECLARED manifest, without fetching the files", async () => {
+		// The caps bound the work, not just the verdict. Evaluating them after
+		// the fetch loop made them describe work already done — which is what
+		// they exist to prevent in the registry position, where an
+		// unauthenticated caller chooses the manifest.
 		const id = mintId()
 		const responses = conformantTrove(id)
 		const body = "x"
-		const entry = {
-			digest: digestOf(body),
-			mediaType: "text/plain",
-			size: 1,
-		}
+		const entry = { digest: digestOf(body), mediaType: "text/plain", size: 1 }
 		const manifest = JSON.parse(responses[MANIFEST_PATH]?.body ?? "") as {
 			files: unknown[]
 		}
@@ -215,9 +215,22 @@ describe("checkTrove", () => {
 		const manifestEntry = responses[MANIFEST_PATH]
 		if (!manifestEntry) throw new Error("fixture missing manifest")
 		manifestEntry.body = JSON.stringify(manifest)
-		const { report } = await checkTrove({ read: memoryReader(responses) })
+
+		const underlying = memoryReader(responses)
+		const readPaths: string[] = []
+		const { report } = await checkTrove({
+			read: async (path) => {
+				readPaths.push(path)
+				return underlying(path)
+			},
+		})
 		expect(failing(report.checks)).toContain("caps")
-		expect(failing(report.checks)).not.toContain("files")
+		expect(report.checks.find((check) => check.name === "files")?.detail).toContain(
+			"not checked",
+		)
+		expect([...readPaths].sort()).toEqual(
+			[AGENTS_MD_PATH, INDEX_PATH, MANIFEST_PATH].sort(),
+		)
 	})
 
 	it("fails anti-cloaking on hidden text outside the block", async () => {
@@ -235,8 +248,13 @@ describe("checkTrove", () => {
 
 	it.each([
 		["a hidden attribute", "<p hidden>quiet</p>"],
-		["aria-hidden", '<p aria-hidden="true">quiet</p>'],
 		["visibility:hidden", "<p style='visibility: hidden'>quiet</p>"],
+		// Each of these evaded the hand-rolled tag regex. A parser sees them
+		// for what they are: attribute values arrive decoded, and a `>` inside
+		// an earlier attribute no longer truncates the tag.
+		["an unquoted style value", "<p style=display:none>quiet</p>"],
+		["an entity-encoded style value", '<p style="display:&#110;one">quiet</p>'],
+		["a > inside an earlier attribute", '<p title="a>b" style="display:none">quiet</p>'],
 	])("fails anti-cloaking on %s", async (_label, markup) => {
 		const id = mintId()
 		const responses = conformantTrove(id)
@@ -249,7 +267,12 @@ describe("checkTrove", () => {
 
 	it.each([
 		["a hidden-named CSS class", '<p class="hidden md:block">visible</p>'],
-		["aria-hidden false", '<p aria-hidden="false">visible</p>'],
+		// aria-hidden is no longer a mechanism: it hides from assistive tech
+		// while leaving the element visible to the human AND to a fetching
+		// agent, so it is not a cloaking channel in either direction. Flagging
+		// it hard-failed the standard decorative-icon idiom.
+		["a decorative aria-hidden icon", '<svg aria-hidden="true" width="10"></svg>'],
+		["aria-hidden on text", '<p aria-hidden="true">visible to the eye</p>'],
 	])("does not flag %s", async (_label, markup) => {
 		const id = mintId()
 		const responses = conformantTrove(id)
@@ -281,6 +304,111 @@ describe("checkTrove", () => {
 		expect(report.ok).toBe(false)
 		expect(report.checks.find((check) => check.name === "manifest")?.detail).toContain(
 			"network down",
+		)
+	})
+
+	it("reports every check as failed when nothing was obtained", async () => {
+		// A check that could not run reports failure, never success. noindex and
+		// anti-cloaking used to report ok:true here — for want of a
+		// counter-example — and the registry persists and publishes this report.
+		const { report } = await checkTrove({
+			read: async () => {
+				throw new Error("network down")
+			},
+		})
+		expect(failing(report.checks)).toHaveLength(7)
+		for (const name of ["noindex", "anti-cloaking"]) {
+			expect(report.checks.find((check) => check.name === name)?.detail).toContain(
+				"not checked",
+			)
+		}
+	})
+
+	it("rejects a second div[data-trove]", async () => {
+		// The checker took the first literal match and trove.js takes the first
+		// CSS match, so a decoy between them puts attacker text in the drawer on
+		// a page certified conformant. One trove, one identity.
+		const id = mintId()
+		const responses = conformantTrove(id)
+		const index = responses[INDEX_PATH]
+		if (!index) throw new Error("fixture missing index")
+		index.body = index.body.replace(
+			"<h1>Fixture</h1>",
+			`<h1>Fixture</h1><div data-trove='${mintId()}'>decoy</div>`,
+		)
+		const { report } = await checkTrove({ read: memoryReader(responses) })
+		expect(failing(report.checks)).toContain("mandated-block")
+		expect(
+			report.checks.find((check) => check.name === "mandated-block")?.detail,
+		).toContain("exactly one")
+	})
+
+	it("ignores a decoy block inside an HTML comment", async () => {
+		// indexOf over raw markup extracted the commented decoy and compared
+		// THAT against the template. A parser does not see comments as elements.
+		const id = mintId()
+		const responses = conformantTrove(id)
+		const index = responses[INDEX_PATH]
+		if (!index) throw new Error("fixture missing index")
+		index.body = index.body.replace(
+			"<h1>Fixture</h1>",
+			`<h1>Fixture</h1><!-- <div data-trove="${mintId()}">decoy</div> -->`,
+		)
+		const { report } = await checkTrove({ read: memoryReader(responses) })
+		// `files` legitimately fails here: editing the index invalidates the
+		// digest the fixture's manifest already recorded for "/".
+		expect(failing(report.checks)).not.toContain("mandated-block")
+	})
+
+	it("reports files and caps as not-checked when the position does not verify files", async () => {
+		const id = mintId()
+		const underlying = memoryReader(conformantTrove(id))
+		const readPaths: string[] = []
+		const { report } = await checkTrove({
+			expectedId: id,
+			read: async (path) => {
+				readPaths.push(path)
+				return underlying(path)
+			},
+			verifyFiles: false,
+		})
+		expect(failing(report.checks)).toEqual(["files", "caps"])
+		expect(report.checks.find((check) => check.name === "files")?.detail).toContain(
+			"not checked",
+		)
+		expect([...readPaths].sort()).toEqual(
+			[AGENTS_MD_PATH, INDEX_PATH, MANIFEST_PATH].sort(),
+		)
+	})
+
+	it("names the real cause when the manifest id is malformed", async () => {
+		// canonicalUrlForId asserts and throws; called from inside superRefine it
+		// escaped safeParse, and the catch reported "not valid JSON" — the wrong
+		// cause, in all three positions, with the real error swallowed.
+		const id = mintId()
+		const responses = conformantTrove(id)
+		const manifestEntry = responses[MANIFEST_PATH]
+		if (!manifestEntry) throw new Error("fixture missing manifest")
+		const manifest = JSON.parse(manifestEntry.body) as Record<string, unknown>
+		manifest.id = "NOT-A-CROCKFORD-ID"
+		manifestEntry.body = JSON.stringify(manifest)
+		const { report } = await checkTrove({ read: memoryReader(responses) })
+		const detail = report.checks.find((check) => check.name === "manifest")?.detail
+		expect(detail).toContain("schema validation")
+		expect(detail).not.toContain("not valid JSON")
+	})
+
+	it("reports a newer standard as newer, not as malformed", async () => {
+		const id = mintId()
+		const responses = conformantTrove(id)
+		const manifestEntry = responses[MANIFEST_PATH]
+		if (!manifestEntry) throw new Error("fixture missing manifest")
+		const manifest = JSON.parse(manifestEntry.body) as Record<string, unknown>
+		manifest.standard = 2
+		manifestEntry.body = JSON.stringify(manifest)
+		const { report } = await checkTrove({ read: memoryReader(responses) })
+		expect(report.checks.find((check) => check.name === "manifest")?.detail).toContain(
+			"newer than this checker",
 		)
 	})
 })

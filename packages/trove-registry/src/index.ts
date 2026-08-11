@@ -103,9 +103,21 @@ app.post("/register", async (c) => {
 	// trove registers even with failing checks: the row records the full
 	// report, /a/<id>.json exposes it, and trove.js renders the verdict —
 	// certification is carried by the stored result, not by row existence.
+	//
+	// verifyFiles is OFF here, so this is three subrequests rather than one per
+	// manifest entry. Fetching every file from inside a Worker bought little:
+	// troves redeploy in place, so a digest verified at registration is stale
+	// the moment the creator redeploys, and the position that actually needs
+	// digests verified is the remixer, who is about to trust the bytes. It cost
+	// a great deal: an unauthenticated caller chose up to a thousand outbound
+	// fetches, the stored per-check details published each target's status and
+	// exact byte length, and a conformant trove larger than the plan's
+	// subrequest budget was recorded as FAILING, permanently. Checks 4 and 6
+	// now report not-checked, which the record states plainly.
 	const { manifest, report } = await checkTrove({
 		expectedId: id,
 		read: httpReader(hostOrigin),
+		verifyFiles: false,
 	})
 	if (manifest === null) {
 		return c.json(
@@ -177,25 +189,40 @@ app.get(RECORD_ROUTE, async (c) => {
 // identified-owner content.
 async function redirectToHost(
 	id: string,
-	subpath: string,
 	c: Context<{ Bindings: Env }>,
 ): Promise<Response> {
 	const row = await lookupRow(id, c.env)
 	if (!row) {
 		return c.json({ error: "unknown trove id" }, 404)
 	}
-	const search = new URL(c.req.url).search
-	const location = new URL(`/${subpath}${search}`, row.host_url)
+	// The subtree remainder is a PATH, never an authority. It is assigned
+	// through the URL object's own setters, which parse it in path-start state
+	// — a state that cannot reach authority state, so "//evil.example/x" stays
+	// a path on host_url. Resolving it relatively instead (new URL(sub, host))
+	// does the opposite: a leading "//" is a network-path reference that
+	// discards the base origin, which was a live open redirect on the canonical
+	// domain, and "//" alone threw, surfacing as a 500.
+	const requestUrl = new URL(c.req.url)
+	const hostOrigin = new URL(row.host_url).origin
+	// The id segment ends at the next "/" — derived from the encoded pathname
+	// rather than the decoded route param, so a percent-encoded id cannot shift
+	// the boundary.
+	const idEnd = requestUrl.pathname.indexOf("/", "/a/".length)
+	const location = new URL(row.host_url)
+	location.pathname = idEnd === -1 ? "" : requestUrl.pathname.slice(idEnd)
+	location.search = requestUrl.search
+	// §3 requires every consumer resolving a path to verify the resolved origin
+	// is the trove's. The setters above make this unreachable; it is kept
+	// because a silent off-host redirect is the failure this route must never
+	// have.
+	if (location.origin !== hostOrigin) {
+		return c.json({ error: "refusing to redirect off the trove's host" }, 500)
+	}
 	return new Response(null, { headers: { location: location.href }, status: 302 })
 }
 
-app.all("/a/:id", (c) => redirectToHost(c.req.param("id"), "", c))
-app.all("/a/:id/*", (c) => {
-	const id = c.req.param("id")
-	const prefix = `/a/${id}/`
-	const subpath = c.req.path.startsWith(prefix) ? c.req.path.slice(prefix.length) : ""
-	return redirectToHost(id, subpath, c)
-})
+app.all("/a/:id", (c) => redirectToHost(c.req.param("id"), c))
+app.all("/a/:id/*", (c) => redirectToHost(c.req.param("id"), c))
 
 app.notFound((c) => c.json({ error: "not found" }, 404))
 

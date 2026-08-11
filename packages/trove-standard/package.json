@@ -1,5 +1,6 @@
 {
 	"dependencies": {
+		"parse5": "^8.0.1",
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {

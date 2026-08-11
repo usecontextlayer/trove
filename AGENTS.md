@@ -4,7 +4,7 @@
 
 A **trove** is a set of static files published at a URL that any agent can fetch, verify, and remix into a new trove of its own. **Trove** is the platform that certifies those URLs and serves the canonical ones.
 
-**The unit is a trove (lowercase); Trove (capitalized) is the platform.** "Send me a trove." The capitalization carries the distinction — hold it in product copy, docs, and identifiers. (This REVERSED an earlier rule that the unit was "a trove"; the one place the old word survives is the mandated block's measured wire text, pending a ruling and re-measurement.)
+**The unit is a trove (lowercase); Trove (capitalized) is the platform.** "Send me a trove." The capitalization carries the distinction — hold it in product copy, docs, and identifiers. (This REVERSED an earlier rule that the unit was "an artifact" — the sweep that applied the reversal rewrote that sentence too, leaving it briefly self-refuting. The one place the old word survives is the mandated block's measured wire text, `"This is a Trove artifact."`, pending a ruling and re-measurement.)
 
 The bar the product is held to: as simple as a GitHub gist. Publishing or remixing must never require an account, setup, config, or doc-reading beyond that.
 
@@ -16,7 +16,7 @@ The bar the product is held to: as simple as a GitHub gist. Publishing or remixi
 
 **"Certified" means exactly one thing:** *we checked this trove for leaked secrets and hidden payloads at publish time.* It is worth something real to a creator. It is not a safety guarantee to a stranger, and no copy, badge, or API response may imply that it is.
 
-**`X-Robots-Tag: noindex` is unconditional on every ARTIFACT response.** No flag, no per-trove override, no indexable tier. It must be the header and never a `robots.txt` `Disallow` — a disallowed path is never crawled, so the directive is never read, which is precisely the misconfiguration that has put other vendors' shared content into search results. A `<meta>` tag is also insufficient: it cannot mark a CSV, a dataset, or an image. The scope is troves plus the registry's trove routes (`/a/*`, `/register` — set in Worker code); **the platform's own pages are deliberately indexable** (owner-ruled) — the platform is a trove in spirit, not in exactness, and §5 binds troves.
+**`X-Robots-Tag: noindex` is unconditional on every TROVE response.** No flag, no per-trove override, no indexable tier. It must be the header and never a `robots.txt` `Disallow` — a disallowed path is never crawled, so the directive is never read, which is precisely the misconfiguration that has put other vendors' shared content into search results. A `<meta>` tag is also insufficient: it cannot mark a CSV, a dataset, or an image. The scope is troves plus the registry's trove routes (`/a/*`, `/register` — set in Worker code); **the platform's own pages are deliberately indexable** (owner-ruled) — the platform is a trove in spirit, not in exactness, and §5 binds troves.
 
 **Security checks come only from external OSS tools run at their default configuration.** We hand-roll no security logic and maintain no rule sets — staleness is the risk, and a rule set we own goes stale. The one sanctioned exception is the anti-cloaking contract check, which is structural validation of our own format (closer to schema validation than to threat detection) and has no external equivalent.
 
@@ -30,13 +30,17 @@ The bar the product is held to: as simple as a GitHub gist. Publishing or remixi
 
 The HTTP contract a trove must satisfy — the required responses, the manifest shape, the mandated block, the conformance checks — is the product. Code implements it; code does not amend it.
 
-**One conformance checker runs in three positions**: the creator's machine before publishing, the registry at registration, and a remixing agent before trusting a trove. It is one implementation with adapters, never three, because certification that can drift from authoring certifies nothing.
+**One conformance checker runs in three positions**: the creator's machine before publishing, the registry at registration, and a remixing agent before trusting a trove. It is one implementation with adapters, never three, because certification that can drift from authoring certifies nothing. Positions differ only in their reader adapter, their `expectedId`, and one deliberate exception the standard states: the registry does not verify the manifest's files, and reports those checks as not-checked.
+
+**Never parse, inspect, or edit HTML with string operations or regexes — use the parser seam in `trove-standard/lib/html.ts`.** This is not style. A hand-rolled tag regex let `style=display:none` (unquoted), `style="display:&#110;one"` (entity-encoded) and `<div title="a>b" style="…">` (a `>` inside an earlier attribute) each evade a check the standard calls gating and absolute; a literal `indexOf` extracted a decoy block out of an HTML comment; an attribute match with no name boundary deleted creators' own `data-trove-count` divs; and an index computed on a `toLowerCase()` copy corrupted every page containing `İ`, because lowercasing is not length-preserving.
+
+**Edit HTML by splicing source offsets, never by re-serializing a parsed tree.** The parser gives each element its byte range; use it. A serializer rewrites the whole document around the edit — quote style, void tags, entities, tag case, attribute spacing — and silently reformatting a creator's page is not a change a publishing tool may make.
 
 If implementing something reveals that the standard is wrong or underspecified, **stop and raise it**. Changing the standard is a product decision, not a refactor.
 
 ## Live traps
 
-**`npx trove` does not work.** `npx` resolves unscoped names only, and the published package is scoped. Any document, skill, or error message that tells an agent how to publish must say `npx @usecontextlayer/trove publish <folder>` or assume an already-installed `trove` binary — a wrong command makes an agent fail and then improvise.
+**`npx trove` is worse than broken — it runs a stranger's package.** `trove` on npm is an unrelated third party's, last published 2022; `npx` resolves it happily and executes it. So the failure mode is not an error an agent recovers from, it is silent execution of someone else's code — and reaching for the unscoped name is the obvious improvisation after a scoped install fails. Any document, skill, or error message that tells an agent how to publish must say `npx @usecontextlayer/trove publish <folder>` or assume an already-installed `trove` binary. (The earlier claim that "npx resolves unscoped names only" was simply wrong, and made the prescribed command look impossible.)
 
 **An anonymous Cloudflare deploy dies at 60 minutes** — the account, the deployment, and the claim URL share one expiry. Zero-signup publish is a preview, not a durable trove, so publish MUST surface the claim URL with its deadline stated plainly. Omitting it lets a trove silently evaporate within the hour.
 

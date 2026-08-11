@@ -1,6 +1,7 @@
 export {
+	CURRENT_STANDARD,
 	ID_PLACEHOLDER,
-	MANDATED_DIV_TEMPLATE,
+	MANDATED_SCRIPT_SRC,
 	MANDATED_SCRIPT_TAG,
 	matchesMandatedDiv,
 	renderMandatedBlock,
@@ -18,6 +19,7 @@ export {
 	type TroveReader,
 	type TroveResponse,
 } from "@/lib/check"
+export { bodyCloseOffset, cutRanges, type HtmlElement, parseElements } from "@/lib/html"
 export {
 	assertWellFormedId,
 	ID_LENGTH,

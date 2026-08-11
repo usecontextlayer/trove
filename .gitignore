@@ -21,3 +21,4 @@ packages/trove-registry/public/trove.js
 .superpowers/
 .playwright-cli/
 .playwright-mcp/
+.claude/worktrees/

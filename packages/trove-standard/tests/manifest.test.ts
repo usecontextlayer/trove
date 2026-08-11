@@ -103,4 +103,56 @@ describe("manifestSchema", () => {
 		const manifest = { ...validManifest(), standard: 1.1 }
 		expect(manifestSchema.safeParse(manifest).success).toBe(false)
 	})
+
+	it("accepts a standard version newer than this implementation", () => {
+		// The checker must be able to say "newer than me" rather than
+		// "malformed" — which is what makes the wire format changeable without
+		// invalidating troves already published.
+		const manifest = { ...validManifest(), standard: 2 }
+		expect(manifestSchema.safeParse(manifest).success).toBe(true)
+	})
+
+	// §3's trove-path grammar. Each of these was accepted by "begins with a
+	// slash", and each produced a real defect: `//host/x` is a protocol-relative
+	// AUTHORITY, so resolving it left the trove's origin entirely; `..` escaped
+	// the destination directory when a remixer wrote the file to disk.
+	it.each([
+		["a protocol-relative authority", "//evil.example/x"],
+		["a backslash authority", "/\\evil.example/x"],
+		["a parent-directory segment", "/../../etc/passwd"],
+		["a nested parent-directory segment", "/a/../../outside.txt"],
+		["a percent-encoded parent segment", "/a/%2e%2e/outside.txt"],
+		["a current-directory segment", "/./data.csv"],
+		["a query string", "/data.csv?x=1"],
+		["a fragment", "/data.csv#top"],
+	])("rejects %s", (_label, path) => {
+		const manifest = validManifest()
+		manifest.files = [
+			{
+				digest: "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+				mediaType: "text/csv",
+				path,
+				size: 1103,
+			},
+		]
+		expect(manifestSchema.safeParse(manifest).success).toBe(false)
+	})
+
+	it.each([
+		["the index page", "/"],
+		["a nested path", "/docs/guide.md"],
+		["a dot in a filename", "/v1.2.3/data.csv"],
+		["a leading-dot filename", "/.well-known/thing"],
+	])("accepts %s", (_label, path) => {
+		const manifest = validManifest()
+		manifest.files = [
+			{
+				digest: "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+				mediaType: "text/csv",
+				path,
+				size: 1103,
+			},
+		]
+		expect(manifestSchema.safeParse(manifest).success).toBe(true)
+	})
 })

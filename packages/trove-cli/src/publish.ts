@@ -109,27 +109,45 @@ export async function publish(options: {
 
 	// Ask wrangler itself — whoami honors both `wrangler login` OAuth state and
 	// CLOUDFLARE_API_TOKEN, so this catches every way a user can be logged in.
+	// Announced before deploying: the two modes differ by whether the result is
+	// permanent, and nothing else in the output distinguishes them.
 	const anonymous = (await detectCredentialState()) === "anonymous"
+	console.error(
+		anonymous
+			? "deploying anonymously — a 60-minute preview, deleted unless claimed"
+			: "deploying with your wrangler credentials — this lands a PERMANENT worker in that Cloudflare account",
+	)
 	const deployed = await deployAssembled({ anonymous, deployDir })
-	await waitUntilServing(deployed.hostUrl)
-	await verifyDeployed(deployed.hostUrl, id)
 
-	// The claim URL prints even if registration then fails — losing it lets the
-	// trove silently evaporate within the hour, the worst first experience.
+	// Everything after the deploy runs inside a finally that prints the host and
+	// claim URLs. The trove is LIVE from here on, so any later failure that
+	// swallowed the claim URL would leave the creator holding nothing while an
+	// unclaimed deployment evaporates within the hour — the outcome the standard
+	// names as the worst first experience. Both awaits below throw, and fetch
+	// rejects on a transport blip during exactly the window a fresh anonymous
+	// slug may not resolve yet.
 	try {
-		const record = await registerTrove(registryUrl, id, deployed.hostUrl)
-		console.log(record.canonical)
-	} catch (error) {
-		console.error(
-			`registration failed — the trove is live but unregistered: ${String(error)}`,
-		)
-		process.exitCode = 1
-	}
-	console.log(deployed.hostUrl)
-	if (deployed.claim !== null) {
-		console.log(deployed.claim.url)
-		console.log(
-			`unclaimed, this trove is deleted in ${deployed.claim.deadlineMinutes} minutes`,
-		)
+		await waitUntilServing(deployed.hostUrl)
+		await verifyDeployed(deployed.hostUrl, id)
+		try {
+			const record = await registerTrove(registryUrl, id, deployed.hostUrl)
+			console.log(`canonical: ${record.canonical}`)
+		} catch (error) {
+			console.error(
+				`registration failed — the trove is live but unregistered: ${String(error)}`,
+			)
+			process.exitCode = 1
+		}
+	} finally {
+		// Labelled: unlabelled bare URLs let a caller take the first line as
+		// "the trove's URL", and on the registration-failure path that first
+		// line is the HOST url — the one the remix skill says never to pass on.
+		console.log(`host: ${deployed.hostUrl}`)
+		if (deployed.claim !== null) {
+			console.log(`claim: ${deployed.claim.url}`)
+			console.log(
+				`unclaimed, this trove is deleted in ${deployed.claim.deadlineMinutes} minutes`,
+			)
+		}
 	}
 }

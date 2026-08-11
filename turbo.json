@@ -13,7 +13,7 @@
 		},
 		"build": {
 			"dependsOn": ["^build"],
-			"outputs": ["dist/**", "public/**"]
+			"outputs": ["dist/**", "public/trove.js"]
 		},
 		"clean": {
 			"cache": false

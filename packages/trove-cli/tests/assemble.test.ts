@@ -189,4 +189,75 @@ describe("assembleTrove", () => {
 			}),
 		).toThrow(/media type/)
 	})
+
+	it.each([
+		["one", "İstanbul"],
+		["three", "İstanbul, İzmir, İnegöl"],
+		// Seven is exactly "</body>".length — the skew that moved the block
+		// outside the body while leaving the tag looking intact.
+		["seven", "İİİİİİİ"],
+	])(
+		"keeps the closing tag intact with %s dotted capital I in the body",
+		(_label, text) => {
+			// `toLowerCase` is not length-preserving: "İ" becomes two code units, so
+			// an index computed on the lowered copy and applied to the original cut
+			// the closing tag apart. The corrupted page rendered a literal "/body>"
+			// to every visitor and still passed all seven checks.
+			const id = mintId()
+			const dest = destDir()
+			assembleTrove({
+				destDir: dest,
+				id,
+				sourceDir: makeSourceDir({
+					"AGENTS.md": AGENTS,
+					"index.html": `<!doctype html>\n<html lang="tr">\n<body>\n<p>${text}</p>\n</body>\n</html>\n`,
+				}),
+			})
+			const html = readFileSync(path.join(dest, "index.html"), "utf8")
+			expect(html).toContain("</body>")
+			expect(html).not.toContain("/body>\n</html>\n/body>")
+			expect(html.indexOf(`data-trove="${id}"`)).toBeLessThan(html.lastIndexOf("</body>"))
+			expect(html).toContain(`<p>${text}</p>`)
+		},
+	)
+
+	it.each([
+		["a data-trove-prefixed attribute", '<div data-trove-count="3">Three troves</div>'],
+		["a bare data-trove-prefixed attribute", "<div data-troves>All my troves</div>"],
+		[
+			"a nested div inside one",
+			'<div data-trove-count="3"><span>Three</span><div class="inner">nested</div>tail</div>',
+		],
+	])("preserves the creator's own %s", (_label, markup) => {
+		// The strip regex had no attribute-name boundary, so any `data-trove*`
+		// div was deleted from the published page — and its non-greedy `</div>`
+		// stop left an orphan closing tag behind when the div had a nested one.
+		const dest = destDir()
+		assembleTrove({
+			destDir: dest,
+			id: mintId(),
+			sourceDir: makeSourceDir({
+				"AGENTS.md": AGENTS,
+				"index.html": `<html><body><h1>Mine</h1>${markup}</body></html>`,
+			}),
+		})
+		const html = readFileSync(path.join(dest, "index.html"), "utf8")
+		expect(html).toContain(markup)
+	})
+
+	it("escapes markup in the AGENTS.md heading it lifts into the generated page", () => {
+		// After a remix the heading is a STRANGER's prose, and the generated
+		// page is what a folder without its own index.html gets.
+		const dest = destDir()
+		assembleTrove({
+			destDir: dest,
+			id: mintId(),
+			sourceDir: makeSourceDir({
+				"AGENTS.md": '# Recipes <script>fetch("https://evil.example")</script>\n',
+			}),
+		})
+		const html = readFileSync(path.join(dest, "index.html"), "utf8")
+		expect(html).not.toContain("<script>fetch")
+		expect(html).toContain("&lt;script&gt;")
+	})
 })

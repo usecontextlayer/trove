@@ -9,9 +9,13 @@ import {
 } from "node:fs"
 import * as path from "node:path"
 import {
+	bodyCloseOffset,
+	CURRENT_STANDARD,
 	canonicalUrlForId,
-	MANDATED_SCRIPT_TAG,
+	cutRanges,
+	MANDATED_SCRIPT_SRC,
 	manifestSchema,
+	parseElements,
 	renderMandatedBlock,
 	type TroveManifest,
 } from "@usecontextlayer/trove-standard"
@@ -68,36 +72,58 @@ function digestOf(content: Buffer): string {
 
 /**
  * Remove any prior mandated-block remnants before injecting a fresh one — a
- * remixed index.html carries the parent's block with its data-trove attribute
- * cleared, and two blocks would make the served page ambiguous. The div regex
- * targets our own generated markup shape (no nested divs exist in it; a
- * hand-mangled block fails conformance either way).
+ * remixed index.html carries the parent's block, and a second div[data-trove]
+ * is a conformance failure in its own right.
+ *
+ * Matched structurally: a div whose attribute name is EXACTLY `data-trove`.
+ * The regex this replaces had no attribute-name boundary, so a creator's own
+ * `<div data-trove-count="3">…</div>` was silently deleted from their published
+ * page — and its non-greedy `</div>` stop left an orphan closing tag behind
+ * whenever the div had a nested one.
  */
 function stripMandatedBlock(html: string): string {
-	return html
-		.replace(/<div data-trove[^>]*>[\s\S]*?<\/div>\s*/g, "")
-		.replaceAll(`${MANDATED_SCRIPT_TAG}\n`, "")
-		.replaceAll(MANDATED_SCRIPT_TAG, "")
+	const ranges = parseElements(html)
+		.filter(
+			(element) =>
+				(element.tagName === "div" && Object.hasOwn(element.attrs, "data-trove")) ||
+				(element.tagName === "script" && element.attrs.src === MANDATED_SCRIPT_SRC),
+		)
+		.flatMap((element) => (element.source === null ? [] : [element.source]))
+	return cutRanges(html, ranges)
 }
 
 function injectBlock(html: string, id: string): string {
 	const block = renderMandatedBlock(id)
 	const stripped = stripMandatedBlock(html)
-	const bodyClose = stripped.toLowerCase().lastIndexOf("</body>")
-	if (bodyClose === -1) {
+	const bodyClose = bodyCloseOffset(stripped)
+	if (bodyClose === null) {
 		return `${stripped}\n${block}\n`
 	}
 	return `${stripped.slice(0, bodyClose)}${block}\n${stripped.slice(bodyClose)}`
+}
+
+function escapeHtml(text: string): string {
+	return text
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
 }
 
 /**
  * The human page the CLI generates when the creator did not author one (§2.1).
  * Contains no hidden text outside the mandated block — a constraint every
  * generated page must respect (check 7 is gating and absolute).
+ *
+ * The heading it lifts is the creator's prose, and after a remix it is a
+ * STRANGER's prose — this function runs whenever the folder has no index.html,
+ * which is what a remix of a trove whose manifest omits "/" produces.
+ * Interpolated raw it put arbitrary markup, including a live `<script>`, on the
+ * republisher's own origin under their own id, so it is escaped.
  */
 function generateIndexHtml(sourceDir: string, id: string): string {
 	const agentsMd = readFileSync(path.join(sourceDir, "AGENTS.md"), "utf8")
-	const title = agentsMd.match(/^#\s+(.+)$/m)?.[1] ?? "A trove"
+	const title = escapeHtml(agentsMd.match(/^#\s+(.+)$/m)?.[1] ?? "A trove")
 	return `<!doctype html>
 <html lang="en">
 <head>
@@ -183,7 +209,7 @@ export function assembleTrove(options: AssembleOptions): TroveManifest {
 		files,
 		id,
 		...(parent === undefined ? {} : { parent, parentDigest }),
-		standard: 1,
+		standard: CURRENT_STANDARD,
 	})
 
 	writeFileSync(

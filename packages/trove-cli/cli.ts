@@ -14,7 +14,7 @@ const program = new Command()
 program
 	.command("publish")
 	.description(
-		"Publish a folder as a trove: assemble (mandated block, trove.json, headers), deploy to Cloudflare, verify it serves, register, and print the canonical URL. Anonymous deploys are 60-minute previews until claimed; set CLOUDFLARE_API_TOKEN to publish into your own account.",
+		"Publish a folder as a trove: assemble (mandated block, trove.json, headers), deploy to Cloudflare, verify it serves, register, and print the canonical URL. ANY wrangler credential publishes into that account permanently — a `wrangler login` session counts, not just CLOUDFLARE_API_TOKEN. With no credential at all this is an anonymous 60-minute preview that is deleted unless you open the claim URL. Publish prints which of the two it did before deploying.",
 	)
 	.argument("<folder>", "the folder to publish; must contain an AGENTS.md")
 	.action(async (folder: string) => {

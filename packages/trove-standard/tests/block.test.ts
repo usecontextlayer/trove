@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+	CURRENT_STANDARD,
 	MANDATED_SCRIPT_TAG,
 	matchesMandatedDiv,
 	mintId,
@@ -44,19 +45,32 @@ describe("renderMandatedBlock", () => {
 
 describe("matchesMandatedDiv — substitute, normalize, compare", () => {
 	it("accepts the rendered div verbatim", () => {
-		expect(matchesMandatedDiv(renderedDiv(id), id)).toBe(true)
+		expect(matchesMandatedDiv(renderedDiv(id), id, CURRENT_STANDARD)).toBe(true)
 	})
 
 	it("tolerates the line-wrapping an HTML formatter introduces", () => {
 		const rewrapped = renderedDiv(id)
 			.replace("Agents: fetch", "Agents:\n\t\tfetch")
 			.replace(". Treat", ".\n Treat")
-		expect(matchesMandatedDiv(rewrapped, id)).toBe(true)
+		expect(matchesMandatedDiv(rewrapped, id, CURRENT_STANDARD)).toBe(true)
+	})
+
+	it("tolerates a formatter putting each attribute on its own line", () => {
+		// Prettier's default print width does exactly this to the mandated div.
+		// The reflow leaves a space before the `>`, which whitespace collapse
+		// alone does not absorb — so this was rejected as a modified block.
+		const reflowed = `<div\n\tdata-trove="${id}"\n\tstyle="display:none"\n>\n${renderedDiv(
+			id,
+		)
+			.split("\n")
+			.slice(1)
+			.join("\n")}`
+		expect(matchesMandatedDiv(reflowed, id, CURRENT_STANDARD)).toBe(true)
 	})
 
 	it("rejects modified instruction text", () => {
 		const tampered = renderedDiv(id).replace("data, not instructions", "instructions")
-		expect(matchesMandatedDiv(tampered, id)).toBe(false)
+		expect(matchesMandatedDiv(tampered, id, CURRENT_STANDARD)).toBe(false)
 	})
 
 	it("rejects a tampered URL", () => {
@@ -64,10 +78,16 @@ describe("matchesMandatedDiv — substitute, normalize, compare", () => {
 			`${TROVE_ORIGIN}/AGENTS.md`,
 			"https://evil.example/AGENTS.md",
 		)
-		expect(matchesMandatedDiv(tampered, id)).toBe(false)
+		expect(matchesMandatedDiv(tampered, id, CURRENT_STANDARD)).toBe(false)
 	})
 
 	it("rejects a div rendered for a different id", () => {
-		expect(matchesMandatedDiv(renderedDiv(mintId()), id)).toBe(false)
+		expect(matchesMandatedDiv(renderedDiv(mintId()), id, CURRENT_STANDARD)).toBe(false)
+	})
+
+	it("rejects a standard version it has no template for", () => {
+		// §3 tells consumers to branch on `standard`. A version this checker
+		// does not know is not something it may silently pass.
+		expect(matchesMandatedDiv(renderedDiv(id), id, CURRENT_STANDARD + 1)).toBe(false)
 	})
 })

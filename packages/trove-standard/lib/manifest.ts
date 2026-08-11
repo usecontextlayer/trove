@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { canonicalUrlForId } from "@/lib/canonical"
-import { ID_PATTERN } from "@/lib/id"
+import { ID_PATTERN, isWellFormedId } from "@/lib/id"
 
 // The manifest — trove.json (§3 of the standard): identity, lineage, and
 // inventory. Per-file fields are the OCI content descriptor's required triple
@@ -16,12 +16,47 @@ export const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/
 const MEDIA_TYPE_PATTERN =
 	/^[a-z0-9][a-z0-9!#$&\-^_.+]{0,126}\/[a-z0-9][a-z0-9!#$&\-^_.+]{0,126}$/i
 
+/**
+ * §3's trove-path grammar: a path resolves inside the trove and nowhere else.
+ * Exactly one leading `/`, no `.` or `..` segment, no query, fragment,
+ * backslash, or scheme.
+ *
+ * The containment half of that meaning used to be unencoded — `path` was
+ * validated as "begins with a slash" — and three layers each re-interpreted the
+ * bare string with a different resolver. `//host/x` is a protocol-relative
+ * AUTHORITY, so `new URL(path, troveUrl)` silently resolved to a different
+ * origin (a trove could be certified while a listed file was served by a third
+ * party, and the registry became an unauthenticated fetcher of arbitrary URLs);
+ * `/../../x` escaped the destination directory when a remixer wrote it to disk.
+ * Encoding it here means all three positions inherit containment from the data
+ * model instead of each needing its own guard.
+ *
+ * `%2e` is decoded before the segment test because the URL parser treats it as
+ * a dot for dot-segment purposes, so `/a/%2e%2e/b` traverses just as `/a/../b`
+ * does.
+ */
+function isTrovePath(path: string): boolean {
+	if (!path.startsWith("/") || path.startsWith("//")) {
+		return false
+	}
+	if (/[?#\\]/.test(path)) {
+		return false
+	}
+	return !path.split("/").some((segment) => {
+		const decoded = segment.replaceAll(/%2e/gi, ".")
+		return decoded === "." || decoded === ".."
+	})
+}
+
 export const manifestFileSchema = z.object({
 	digest: z.string().regex(DIGEST_PATTERN),
 	mediaType: z.string().regex(MEDIA_TYPE_PATTERN),
-	// Absolute path within the trove, leading slash. "/" itself is the index
-	// page's entry (§3's membership rule).
-	path: z.string().regex(/^\//),
+	// A trove path (see above). "/" itself is the index page's entry (§3's
+	// membership rule).
+	path: z.string().refine(isTrovePath, {
+		message:
+			"must be a path inside the trove: one leading slash, no . or .. segment, no query, fragment, or backslash",
+	}),
 	// Decoded byte length, never Content-Length as sent — the host serves
 	// brotli, so wire length varies with Accept-Encoding; decoded length is the
 	// quantity the digest is computed over, so the two always agree.
@@ -35,11 +70,20 @@ export const manifestSchema = z
 		id: z.string().regex(ID_PATTERN),
 		parent: z.url().optional(),
 		parentDigest: z.string().regex(DIGEST_PATTERN).optional(),
-		// The JSON number 1 — not a string, not dotted. Consumers branch with >=;
-		// a wire format either breaks readers or does not.
-		standard: z.literal(1),
+		// A JSON number — not a string, not dotted. Consumers branch with >=; a
+		// wire format either breaks readers or does not. Deliberately NOT
+		// `literal(1)`: a newer trove must parse so the checker can report it as
+		// newer rather than as malformed, which is what makes the wire text
+		// changeable without invalidating troves already published.
+		standard: z.number().int().min(1),
 	})
 	.superRefine((manifest, ctx) => {
+		// Guarded: canonicalUrlForId ASSERTS a well-formed id and throws, which
+		// escaped safeParse — whose whole contract is that it does not throw —
+		// and surfaced three layers up as "not valid JSON", the wrong cause.
+		if (!isWellFormedId(manifest.id)) {
+			return
+		}
 		if (manifest.canonical !== canonicalUrlForId(manifest.id)) {
 			ctx.addIssue({
 				code: "custom",

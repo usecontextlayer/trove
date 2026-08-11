@@ -161,6 +161,34 @@ describe("GET /a/<id> subtree", () => {
 		})
 		expect(response.status).toBe(404)
 	})
+
+	// §7: the Location MUST resolve inside hostUrl's origin — the subtree
+	// remainder is a path, never an authority. Building it by string
+	// concatenation made "/a/<id>//elsewhere.example/x" a live open redirect on
+	// the canonical domain, reachable with nothing but a published trove id.
+	it.each([
+		["a doubled slash", "//elsewhere.example/x"],
+		["a backslash authority", "/\\elsewhere.example/x"],
+		["a doubled slash carrying a query", "//elsewhere.example/x?a=1"],
+		["a bare doubled slash", "//"],
+	])("keeps %s on the trove's own host", async (_label, subpath) => {
+		await registerFixture()
+		const response = await SELF.fetch(`${REGISTRY}/a/${fixtureId}${subpath}`, {
+			redirect: "manual",
+		})
+		expect(response.status).toBe(302)
+		const location = response.headers.get("location") ?? ""
+		expect(new URL(location).origin).toBe(new URL(fixtureHost).origin)
+	})
+
+	it("preserves the query string on a subtree redirect", async () => {
+		await registerFixture()
+		const response = await SELF.fetch(`${REGISTRY}/a/${fixtureId}/data.csv?a=1&b=2`, {
+			redirect: "manual",
+		})
+		expect(response.status).toBe(302)
+		expect(response.headers.get("location")).toBe(`${fixtureHost}/data.csv?a=1&b=2`)
+	})
 })
 
 describe("fallthrough", () => {

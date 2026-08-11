@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import * as path from "node:path"
-import { ID_PATTERN, manifestSchema } from "@usecontextlayer/trove-standard"
+import {
+	ID_PATTERN,
+	manifestSchema,
+	parseElements,
+} from "@usecontextlayer/trove-standard"
 import { REMIX_MARKER_FILE } from "@/src/assemble"
 
 // Remixing (§9): fetch is where lineage is captured and inherited identity is
@@ -27,18 +31,38 @@ export function readRemixMarker(sourceDir: string): RemixMarker | null {
 }
 
 /**
- * --from takes the CANONICAL URL, never a host URL (§9) — canonical is the
- * identity, and it is what gets recorded as parent.
+ * The remix argument is the CANONICAL URL, never a host URL (§9) — canonical is
+ * the identity, and it is what gets recorded as parent. §9 also ruled that
+ * remixing is a command, not a flag; the rejected `--from` spelling survived in
+ * this message, so an agent that got the argument wrong was corrected toward an
+ * option the CLI does not have and failed twice on one mistake.
  */
 export function parseCanonicalUrl(registryUrl: string, from: string): string {
 	const prefix = `${registryUrl}/a/`
 	const id = from.startsWith(prefix) ? from.slice(prefix.length) : null
 	if (id === null || !ID_PATTERN.test(id)) {
 		throw new Error(
-			`--from takes the trove's canonical URL (${registryUrl}/a/<id>), not a host URL. The canonical URL is in the trove's own trove.json.`,
+			`trove remix takes the trove's canonical URL (${registryUrl}/a/<id>), not a host URL. The canonical URL is in the trove's own trove.json.`,
 		)
 	}
 	return from
+}
+
+/**
+ * Clear the parent's identity from the copied page (§9). The attribute's own
+ * source range is spliced, so every other byte of the parent's markup survives
+ * exactly as served — publish then strips the remnant block and injects a fresh
+ * one.
+ */
+function clearInheritedIdentity(html: string): string {
+	const div = parseElements(html).find(
+		(element) => element.tagName === "div" && Object.hasOwn(element.attrs, "data-trove"),
+	)
+	const range = div?.source?.attrs["data-trove"]
+	if (range === undefined) {
+		return html
+	}
+	return `${html.slice(0, range.start)}data-trove=""${html.slice(range.end)}`
 }
 
 export async function remixTrove(options: {
@@ -84,15 +108,22 @@ export async function remixTrove(options: {
 		}
 		// "/" is the index page's manifest entry; it lands on disk as index.html.
 		const relative = file.path === "/" ? "index.html" : file.path.slice(1)
-		const target = path.join(destDir, relative)
-		mkdirSync(path.dirname(target), { recursive: true })
-		// Inherited identity is stripped at fetch time: the data-trove attribute
-		// is cleared (publish strips the remnant block and injects a fresh one).
-		if (relative === "index.html") {
-			writeFileSync(
-				target,
-				content.toString("utf8").replace(/data-trove="[^"]*"/, 'data-trove=""'),
+		const target = path.resolve(destDir, relative)
+		// §3 requires every consumer writing a trove path to disk to verify the
+		// resolved location stays inside its destination. The path grammar in
+		// the manifest schema already rejects `..`, which is why this can no
+		// longer fire — it is kept because the failure it prevents is writing a
+		// stranger's bytes to an arbitrary path on the remixer's machine.
+		const root = path.resolve(destDir)
+		if (target !== root && !target.startsWith(root + path.sep)) {
+			throw new Error(
+				`${file.path} resolves outside ${destDir} — refusing to write it. The trove's manifest is malformed.`,
 			)
+		}
+		mkdirSync(path.dirname(target), { recursive: true })
+		// Inherited identity is stripped at fetch time (§9).
+		if (relative === "index.html") {
+			writeFileSync(target, clearInheritedIdentity(content.toString("utf8")))
 		} else {
 			writeFileSync(target, content)
 		}
