@@ -1,0 +1,27 @@
+{
+	"dependencies": {
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"vitest": "^4.1.10"
+	},
+	"exports": {
+		".": {
+			"import": "./dist/index.mjs",
+			"types": "./dist/index.d.mts"
+		}
+	},
+	"main": "./dist/index.mjs",
+	"name": "@usecontextlayer/trove-standard",
+	"private": true,
+	"scripts": {
+		"build": "npx tsdown",
+		"clean": "rm -rf dist dist-types *.tsbuildinfo",
+		"dev:watch": "npx tsdown --watch",
+		"test": "npx vitest run --config vitest.config.ts",
+		"tsc": "npx tsc -b tsconfig.json"
+	},
+	"type": "module",
+	"types": "./dist/index.d.mts",
+	"version": "0.1.0"
+}

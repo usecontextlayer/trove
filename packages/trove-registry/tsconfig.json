@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"composite": true,
+		"paths": {
+			"@/*": ["./*"]
+		},
+		"types": ["@cloudflare/vitest-pool-workers/types"]
+	},
+	"exclude": ["manage.ts", "vitest.config.ts"],
+	"extends": "../../tsconfig.base.json",
+	"include": ["**/*.ts", "worker-configuration.d.ts"],
+	"references": [
+		{
+			"path": "../trove-standard"
+		}
+	]
+}

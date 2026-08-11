@@ -1,0 +1,5 @@
+# Applies to static asset responses only (including env.ASSETS.fetch() results).
+# Worker-constructed responses set the same header in code — _headers never
+# reaches them, so the standard's unconditional noindex needs both.
+/*
+  X-Robots-Tag: noindex

@@ -7,8 +7,10 @@ engineStrict: true
 
 # pnpm 10 blocks dependency build/postinstall scripts by default. These are the
 # trusted native/binary-staging deps that must run their install scripts:
-#   esbuild   — installs the platform binary (tsx/vitest)
-#   workerd   — Cloudflare's runtime, staged by wrangler/miniflare
+#   better-sqlite3 — native sqlite driver (kysely-codegen introspects the local D1 file)
+#   esbuild        — installs the platform binary (tsx/vitest)
+#   workerd        — Cloudflare's runtime, staged by wrangler/miniflare
 onlyBuiltDependencies:
+  - better-sqlite3
   - esbuild
   - workerd

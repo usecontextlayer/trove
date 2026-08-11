@@ -1,0 +1,29 @@
+{
+	"dependencies": {
+		"@usecontextlayer/trove-standard": "workspace:*",
+		"kysely": "^0.29.5",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-pool-workers": "^0.21.0",
+		"better-sqlite3": "^12.11.1",
+		"commander": "^15.0.0",
+		"kysely-codegen": "^0.20.0",
+		"vitest": "^4.1.10",
+		"wrangler": "^4.120.1"
+	},
+	"name": "@usecontextlayer/trove-registry",
+	"private": true,
+	"scripts": {
+		"build": "true",
+		"clean": "rm -rf dist .wrangler *.tsbuildinfo",
+		"deploy": "npx wrangler deploy",
+		"dev": "npx wrangler dev",
+		"manage": "npx tsx manage.ts",
+		"test": "npx vitest run --config vitest.config.ts",
+		"tsc": "npx tsc -b tsconfig.json && npx tsc -p tsconfig.node.json",
+		"types": "npx wrangler types"
+	},
+	"type": "module",
+	"version": "0.1.0"
+}
