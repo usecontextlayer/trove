@@ -1,8 +1,9 @@
 import {
 	canonicalUrlForId,
+	checkArtifact,
+	httpReader,
 	ID_PATTERN,
 	MANIFEST_PATH,
-	manifestSchema,
 } from "@usecontextlayer/trove-standard"
 import { type Context, Hono } from "hono"
 import { cors } from "hono/cors"
@@ -93,44 +94,26 @@ app.post("/register", async (c) => {
 		)
 	}
 
-	// Proof of control (§7): the artifact served at hostUrl carries its own id in
-	// its manifest, so registering someone else's URL fails on the id mismatch —
-	// no challenge file, no token.
-	//
-	// PLACEHOLDER for the full §6.1 contract checker (one implementation, three
-	// positions — creator's machine, here, remixing agent). What runs today is
-	// the control-proof core: manifest fetched over HTTP, schema-valid, id match.
-	let manifestResponse: Response
-	try {
-		manifestResponse = await fetch(new URL(MANIFEST_PATH, hostOrigin))
-	} catch (error) {
+	// The §6.1 contract checks over HTTP — the same checker that runs on the
+	// creator's machine and in a remixing agent, in the registry position
+	// (expectedId = the id being registered). Identity is the GATE: an
+	// unreadable manifest is 422, a different id is 409 (proof of control, §7 —
+	// the artifact carries its own id, so registering someone else's URL fails
+	// with no challenge file and no token). A readable, correctly-identified
+	// artifact registers even with failing checks: the row records the full
+	// report, /a/<id>.json exposes it, and trove.js renders the verdict —
+	// certification is carried by the stored result, not by row existence.
+	const { manifest, report } = await checkArtifact({
+		expectedId: id,
+		read: httpReader(hostOrigin),
+	})
+	if (manifest === null) {
 		return c.json(
-			{ error: `could not fetch ${MANIFEST_PATH} from hostUrl: ${String(error)}` },
+			{ error: `hostUrl does not serve a valid ${MANIFEST_PATH}`, report },
 			422,
 		)
 	}
-	if (!manifestResponse.ok) {
-		return c.json(
-			{
-				error: `hostUrl does not serve ${MANIFEST_PATH} (status ${manifestResponse.status})`,
-			},
-			422,
-		)
-	}
-	let manifestJson: unknown
-	try {
-		manifestJson = await manifestResponse.json()
-	} catch {
-		return c.json({ error: `${MANIFEST_PATH} is not valid JSON` }, 422)
-	}
-	const manifest = manifestSchema.safeParse(manifestJson)
-	if (!manifest.success) {
-		return c.json(
-			{ error: `invalid ${MANIFEST_PATH}: ${z.prettifyError(manifest.error)}` },
-			422,
-		)
-	}
-	if (manifest.data.id !== id) {
+	if (manifest.id !== id) {
 		return c.json({ error: "the artifact served at hostUrl carries a different id" }, 409)
 	}
 
@@ -148,18 +131,13 @@ app.post("/register", async (c) => {
 	}
 
 	const now = new Date().toISOString()
-	const contractCheck = {
-		checkedAt: now,
-		checks: [{ name: "manifest", ok: true }],
-		ok: true,
-	}
 	const row: Artifact = {
-		contract_check: JSON.stringify(contractCheck),
+		contract_check: JSON.stringify({ checkedAt: now, ...report }),
 		host_url: hostOrigin,
 		id,
-		parent: manifest.data.parent ?? null,
+		parent: manifest.parent ?? null,
 		registered_at: existing?.registered_at ?? now,
-		standard: manifest.data.standard,
+		standard: manifest.standard,
 	}
 	await db
 		.insertInto("artifact")

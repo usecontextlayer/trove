@@ -3,12 +3,14 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import {
+	checkArtifact,
 	MANDATED_SCRIPT_TAG,
 	manifestSchema,
 	mintId,
 } from "@usecontextlayer/trove-standard"
 import { describe, expect, it } from "vitest"
 import { assembleArtifact, REMIX_MARKER_FILE } from "@/src/assemble"
+import { localReader } from "@/src/local-reader"
 
 function makeSourceDir(files: Record<string, string>): string {
 	const dir = mkdtempSync(path.join(os.tmpdir(), "trove-test-src-"))
@@ -26,7 +28,7 @@ function destDir(): string {
 const AGENTS = "# Test artifact\n\nA test artifact.\n"
 
 describe("assembleArtifact", () => {
-	it("assembles a conformant artifact from a bare folder", () => {
+	it("assembles a conformant artifact from a bare folder", async () => {
 		const id = mintId()
 		const dest = destDir()
 		const manifest = assembleArtifact({
@@ -34,6 +36,11 @@ describe("assembleArtifact", () => {
 			id,
 			sourceDir: makeSourceDir({ "AGENTS.md": AGENTS, "data.csv": "a,b\n1,2\n" }),
 		})
+
+		// The assembled output passes the standard's own §6.1 checker through the
+		// local adapter — assembly and certification can never drift.
+		const { report } = await checkArtifact({ expectedId: id, read: localReader(dest) })
+		expect(report.checks.filter((check) => !check.ok)).toEqual([])
 
 		// The manifest round-trips through the standard's own schema.
 		expect(manifestSchema.parse(manifest).id).toBe(id)

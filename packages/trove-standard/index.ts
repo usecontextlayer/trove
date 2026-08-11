@@ -7,6 +7,18 @@ export {
 } from "@/lib/block"
 export { canonicalUrlForId, TROVE_ORIGIN } from "@/lib/canonical"
 export {
+	type ArtifactReader,
+	type ArtifactResponse,
+	type CheckArtifactResult,
+	type ContractCheck,
+	type ContractCheckName,
+	type ContractCheckReport,
+	checkArtifact,
+	httpReader,
+	MAX_FILES,
+	MAX_TOTAL_BYTES,
+} from "@/lib/check"
+export {
 	assertWellFormedId,
 	ID_LENGTH,
 	ID_PATTERN,
