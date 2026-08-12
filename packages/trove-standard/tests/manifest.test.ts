@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { canonicalUrlForId, manifestSchema, mintId } from "@/index"
+import { manifestSchema } from "@/index"
 
 const id = "8k2mfq7xr3nv9wbz4tcy6hjd"
+
+// A parent is named at its own URL now — where it is actually served.
+const PARENT_URL = "https://trove-9xk2mfq7.mellow-harbor.workers.dev"
 
 // The standard's §3 example, completed with a well-formed parent lineage.
 function validManifest(): Record<string, unknown> {
 	return {
-		canonical: canonicalUrlForId(id),
 		files: [
 			{
 				digest: "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
@@ -39,10 +41,9 @@ describe("manifestSchema", () => {
 	})
 
 	it("accepts a remix carrying both parent and parentDigest", () => {
-		const parentId = mintId()
 		const manifest = {
 			...validManifest(),
-			parent: canonicalUrlForId(parentId),
+			parent: PARENT_URL,
 			parentDigest:
 				"sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
 		}
@@ -50,7 +51,7 @@ describe("manifestSchema", () => {
 	})
 
 	it("rejects parent without parentDigest", () => {
-		const manifest = { ...validManifest(), parent: canonicalUrlForId(mintId()) }
+		const manifest = { ...validManifest(), parent: PARENT_URL }
 		expect(manifestSchema.safeParse(manifest).success).toBe(false)
 	})
 
@@ -63,9 +64,20 @@ describe("manifestSchema", () => {
 		expect(manifestSchema.safeParse(manifest).success).toBe(false)
 	})
 
-	it("rejects a canonical URL not derived from the id", () => {
-		const manifest = { ...validManifest(), canonical: canonicalUrlForId(mintId()) }
-		expect(manifestSchema.safeParse(manifest).success).toBe(false)
+	// A manifest states no URL of its own: a trove has one address, its own,
+	// and whoever is reading the manifest already holds it. Standard 1 DID
+	// carry a `canonical` field, so this pins that those troves still parse —
+	// the schema strips unknown keys rather than rejecting them, which is what
+	// makes the version lever usable rather than merely present.
+	it("still parses a standard-1 manifest carrying the retired canonical field", () => {
+		const manifest = {
+			...validManifest(),
+			canonical: "https://trove.usecontextlayer.com/a/8k2mfq7xr3nv9wbz4tcy6hjd",
+			standard: 1,
+		}
+		const parsed = manifestSchema.safeParse(manifest)
+		expect(parsed.success).toBe(true)
+		expect(parsed.data).not.toHaveProperty("canonical")
 	})
 
 	it("rejects an uppercase-hex digest", () => {

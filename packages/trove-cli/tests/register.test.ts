@@ -3,7 +3,7 @@ import * as http from "node:http"
 import * as os from "node:os"
 import * as path from "node:path"
 import type { ContractCheckReport } from "@usecontextlayer/trove-standard"
-import { canonicalUrlForId, mintId } from "@usecontextlayer/trove-standard"
+import { mintId, recordUrlForId } from "@usecontextlayer/trove-standard"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { assembleTrove } from "@/src/assemble"
 import { parseHostUrl, register } from "@/src/register"
@@ -48,7 +48,6 @@ const PASSING: ContractCheckReport = {
 
 function recordFor(report: ContractCheckReport): unknown {
 	return {
-		canonical: canonicalUrlForId(troveId),
 		contractCheck: { checkedAt: "2026-08-11T00:00:00.000Z", ...report },
 		hostUrl,
 		id: troveId,
@@ -116,10 +115,10 @@ describe("parseHostUrl", () => {
 		)
 	})
 
-	it("rejects a canonical URL, naming the host URL publish printed", () => {
+	it("rejects a registry URL, naming the trove URL publish printed", () => {
 		expect(() =>
 			parseHostUrl(registryUrl, `https://trove.usecontextlayer.com/a/${troveId}`),
-		).toThrow(/HOST url/)
+		).toThrow(/trove's own URL/)
 	})
 
 	it("rejects something that is not a URL", () => {
@@ -128,7 +127,7 @@ describe("parseHostUrl", () => {
 })
 
 describe("register", () => {
-	it("reads the id off the served trove and prints the canonical URL", async () => {
+	it("reads the id off the served trove, and prints the trove URL and the record", async () => {
 		const log = vi.spyOn(console, "log").mockImplementation(() => {})
 		nextReply = { body: recordFor(PASSING), status: 201 }
 
@@ -137,7 +136,8 @@ describe("register", () => {
 		// The id came from the trove itself — nothing had to be carried in.
 		expect(lastRegisterBody).toEqual({ hostUrl, id: troveId })
 		const printed = log.mock.calls.map((call) => String(call[0])).join("\n")
-		expect(printed).toContain(`canonical: ${canonicalUrlForId(troveId)}`)
+		expect(printed).toContain(`trove: ${hostUrl}`)
+		expect(printed).toContain(`record: ${recordUrlForId(troveId)}`)
 		expect(process.exitCode).toBeFalsy()
 	})
 

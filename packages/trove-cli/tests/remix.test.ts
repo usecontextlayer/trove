@@ -6,17 +6,16 @@ import * as path from "node:path"
 import { manifestSchema, mintId } from "@usecontextlayer/trove-standard"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { assembleTrove } from "@/src/assemble"
-import { parseCanonicalUrl, readRemixMarker, remixTrove } from "@/src/remix"
+import { parseTroveUrl, readRemixMarker, remixTrove } from "@/src/remix"
 
-// The far side of remix is OUR OWN standard: a local server serving a
-// REAL assembled trove (built by assembleTrove, digests and all) at
-// canonical-shaped paths — the state a remixing agent sees after the
-// registry's subtree redirect resolves.
+// The far side of remix is OUR OWN standard: a local server serving a REAL
+// assembled trove (built by assembleTrove, digests and all) at its own root —
+// which is how a trove is actually served, and since the registry stopped
+// redirecting a subtree, the only way one is reachable at all.
 
 const troveId = mintId()
 let server: http.Server
-let registryUrl: string
-let canonicalUrl: string
+let troveUrl: string
 let assembledDir: string
 
 beforeAll(async () => {
@@ -28,12 +27,7 @@ beforeAll(async () => {
 	})
 
 	server = http.createServer((request, response) => {
-		const prefix = `/a/${troveId}`
-		if (!request.url?.startsWith(prefix)) {
-			response.writeHead(404).end()
-			return
-		}
-		const trovePath = request.url.slice(prefix.length) || "/"
+		const trovePath = request.url || "/"
 		const file = trovePath === "/" ? "index.html" : trovePath.slice(1)
 		try {
 			response.writeHead(200).end(readFileSync(path.join(assembledDir, file)))
@@ -46,8 +40,7 @@ beforeAll(async () => {
 	if (address === null || typeof address === "string") {
 		throw new Error("server did not bind a port")
 	}
-	registryUrl = `http://127.0.0.1:${address.port}`
-	canonicalUrl = `${registryUrl}/a/${troveId}`
+	troveUrl = `http://127.0.0.1:${address.port}`
 })
 
 afterAll(() => {
@@ -61,23 +54,33 @@ function makeSource(): string {
 	return dir
 }
 
-describe("parseCanonicalUrl", () => {
-	it("accepts a canonical URL", () => {
+describe("parseTroveUrl", () => {
+	it("accepts a trove's own URL", () => {
 		expect(
-			parseCanonicalUrl(
-				"https://trove.usecontextlayer.com",
-				`https://trove.usecontextlayer.com/a/${troveId}`,
-			),
-		).toBe(`https://trove.usecontextlayer.com/a/${troveId}`)
-	})
-
-	it("rejects a host URL, naming what canonical looks like", () => {
-		expect(() =>
-			parseCanonicalUrl(
+			parseTroveUrl(
 				"https://trove.usecontextlayer.com",
 				"https://trove-abc.some-account.workers.dev",
 			),
-		).toThrow(/canonical URL/)
+		).toBe("https://trove-abc.some-account.workers.dev")
+	})
+
+	// The two URL-taking commands take different URLs, so an agent will
+	// eventually hand each the other's. A registry URL 302s to a trove and has
+	// no subtree, so every path built under it 404s — worth naming rather than
+	// letting the caller discover it one failed fetch at a time.
+	it("rejects a registry URL, naming where the trove's own URL is published", () => {
+		expect(() =>
+			parseTroveUrl(
+				"https://trove.usecontextlayer.com",
+				`https://trove.usecontextlayer.com/a/${troveId}`,
+			),
+		).toThrow(/hostUrl/)
+	})
+
+	it("rejects something that is not a URL", () => {
+		expect(() =>
+			parseTroveUrl("https://trove.usecontextlayer.com", "trove-abc.workers.dev"),
+		).toThrow(/not a URL/)
 	})
 })
 
@@ -87,7 +90,7 @@ describe("remixTrove", () => {
 			mkdtempSync(path.join(os.tmpdir(), "trove-remix-out-")),
 			"r",
 		)
-		const { fileCount } = await remixTrove({ canonicalUrl, destDir })
+		const { fileCount } = await remixTrove({ destDir, troveUrl })
 		expect(fileCount).toBe(3)
 
 		// Files landed and match the origin bytes.
@@ -107,7 +110,7 @@ describe("remixTrove", () => {
 		const marker = readRemixMarker(destDir)
 		const servedManifest = readFileSync(path.join(assembledDir, "trove.json"))
 		expect(marker).toEqual({
-			parent: canonicalUrl,
+			parent: troveUrl,
 			parentDigest: `sha256:${createHash("sha256").update(servedManifest).digest("hex")}`,
 		})
 	})
@@ -117,7 +120,7 @@ describe("remixTrove", () => {
 			mkdtempSync(path.join(os.tmpdir(), "trove-remix-out2-")),
 			"r",
 		)
-		await remixTrove({ canonicalUrl, destDir })
+		await remixTrove({ destDir, troveUrl })
 		const marker = readRemixMarker(destDir)
 		if (marker === null) {
 			throw new Error("marker missing")
@@ -135,7 +138,7 @@ describe("remixTrove", () => {
 			parentDigest: marker.parentDigest,
 			sourceDir: destDir,
 		})
-		expect(manifestSchema.parse(manifest).parent).toBe(canonicalUrl)
+		expect(manifestSchema.parse(manifest).parent).toBe(troveUrl)
 		// The child's page carries the child's id, not the parent's.
 		const html = readFileSync(path.join(childDest, "index.html"), "utf8")
 		expect(html).toContain(`data-trove="${childId}"`)
@@ -151,9 +154,7 @@ describe("remixTrove", () => {
 				mkdtempSync(path.join(os.tmpdir(), "trove-remix-out3-")),
 				"r",
 			)
-			await expect(remixTrove({ canonicalUrl, destDir })).rejects.toThrow(
-				/do not trust it/,
-			)
+			await expect(remixTrove({ destDir, troveUrl })).rejects.toThrow(/do not trust it/)
 		} finally {
 			writeFileSync(path.join(assembledDir, "data.csv"), original)
 		}

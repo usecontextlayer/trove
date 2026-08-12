@@ -53,7 +53,7 @@ Seven checks, run identically on your machine before publishing, at the registry
 | check | what it asserts |
 |---|---|
 | `mandated-block` | `/` returns HTML carrying exactly one Trove block, unmodified |
-| `manifest` | `/trove.json` parses, the id is well-formed, the canonical URL matches it |
+| `manifest` | `/trove.json` parses, its id is well-formed, and the same id appears in the Trove block |
 | `agents-md` | `/AGENTS.md` returns non-empty markdown |
 | `files` | every file in the manifest serves from this origin with matching media type, byte length, and digest |
 | `noindex` | every response carries `X-Robots-Tag: noindex` — unconditional for every trove, and the CLI generates it for you |
@@ -78,15 +78,27 @@ A trove may ship skills of its own — instructions teaching an agent a workflow
 
 ## Publishing is two steps
 
-They are separate commands and **neither runs the other**. Publishing puts the bytes online; registering certifies them and is what creates the canonical URL.
+They are separate commands and **neither runs the other**. Publishing puts the bytes online — the trove is readable by anyone from that moment. Registering claims its id and publishes an independent verdict about it.
 
 ```
 npx @usecontextlayer/trove publish <folder>
-npx @usecontextlayer/trove register <host-url>
+npx @usecontextlayer/trove register <trove-url>
 ```
 
-`publish` checks the folder, deploys it, verifies the bytes that came back, and prints the trove's `host:` URL. It prints no canonical URL, because there is not one yet.
+`publish` checks the folder, deploys it, verifies the bytes that came back, and prints the trove's URL. **That URL is the trove** — there is no second one, and nothing you publish routes through Trove. Share it.
 
-`register` takes that host URL, reads the trove's id from the `trove.json` it serves, and prints the `canonical:` URL. **Give people the canonical URL** — it is the trove's identity and it survives the trove moving. A trove that fails its checks is still registered, with the failing report stored and published; the command prints it and exits non-zero.
+`register` takes that URL and reads the trove's id from the `trove.json` it serves, which is also what proves you control the trove you are registering. A trove that fails its checks is still registered, with the failing report stored and published; the command prints the failures and exits non-zero.
 
-A publish without Cloudflare credentials is a **60-minute preview**: the CLI prints a claim URL and its deadline. Surface both to your user immediately — unclaimed, the trove is deleted within the hour, and registering it does not extend that clock.
+A publish without Cloudflare credentials is a **60-minute preview**: the CLI prints a claim URL and its deadline. Surface both to your user immediately — unclaimed, the trove is deleted within the hour, and registering does not extend that clock.
+
+## Always register — here is what it actually buys
+
+Registering does not make your trove readable. It already is, served from your own account, with Trove nowhere on the path. What registering closes is three things a trove cannot establish about itself. Skip it and each one stays open.
+
+**Someone else can claim your id.** An id binds to one URL forever, and the binding goes to whoever registers it first. Until you do, anyone can take the id out of your published `trove.json`, serve a copy of your trove from a URL they control, and register that. From then on the public record for your id describes their copy — and yours is the one that can no longer be registered, because the id is taken.
+
+**"Verified" written on a page is worth nothing.** Any page can claim anything, so a trove asserting its own conformance is a stranger vouching for themselves. The registry's record is the only verdict a reader can consult that your trove's author did not write. That is precisely why it is a lookup and not a badge.
+
+**A remix naming you as parent cannot be corroborated.** Lineage records a parent's URL and the digest of its manifest at the moment it was remixed. A reader who wants to know whether that parent is what the remix claims has nothing independent to check against unless the parent was recorded.
+
+The verdict is also worth more than your own run of the same checks, for a reason that has nothing to do with trust in you: it is produced from a position where your machine, your network and your assumptions are not involved.

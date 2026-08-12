@@ -335,9 +335,11 @@ export async function checkTrove(options: {
 	// block, present and unmodified, with a well-formed id.
 	checks.push(verdict("mandated-block", blockDetail))
 
-	// Check 2 — the manifest: 200 application/json, schema-valid (the schema
-	// itself enforces canonical-derived-from-id), one identity across every
-	// surface: block id = manifest id = (when given) the id being registered.
+	// Check 2 — the manifest: 200 application/json, schema-valid, one identity
+	// across every surface: block id = manifest id = (when given) the id being
+	// registered. It no longer also cross-checks a self-declared URL, because a
+	// manifest no longer states one — a trove is served at exactly one address
+	// and the reader already holds it.
 	if (manifest !== null && manifestDetail === undefined) {
 		if (!knownStandard) {
 			manifestDetail = `standard ${manifest.standard} is newer than this checker (${CURRENT_STANDARD})`

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
 import {
 	assertWellFormedId,
-	canonicalUrlForId,
 	ID_LENGTH,
 	ID_PATTERN,
 	isWellFormedId,
 	mintId,
+	recordUrlForId,
 	TROVE_ORIGIN,
 } from "@/index"
 
@@ -41,13 +41,13 @@ describe("id grammar", () => {
 	})
 })
 
-describe("canonicalUrlForId", () => {
-	it("derives the canonical URL purely from the id", () => {
+describe("recordUrlForId", () => {
+	it("derives the registry's record URL purely from the id", () => {
 		const id = mintId()
-		expect(canonicalUrlForId(id)).toBe(`${TROVE_ORIGIN}/a/${id}`)
+		expect(recordUrlForId(id)).toBe(`${TROVE_ORIGIN}/a/${id}.json`)
 	})
 
 	it("throws on a malformed id", () => {
-		expect(() => canonicalUrlForId("not-an-id")).toThrow(/Malformed trove id/)
+		expect(() => recordUrlForId("not-an-id")).toThrow(/Malformed trove id/)
 	})
 })

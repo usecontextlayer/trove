@@ -18,9 +18,11 @@ import {
 // never runs it — publishing gets bytes live, registering gets them certified,
 // and they answer different questions.
 //
-// So publish never prints a canonical URL. The canonical resolves only once the
-// registry holds the id↔host binding, and printing it here would hand back the
-// one URL the standard says to share while it still 404s.
+// The URL this prints is the trove's only URL and is readable immediately, by
+// anyone, with no involvement from Trove. That is the whole point of the
+// design: our infrastructure is not on the path that reads someone else's
+// static files. Registering adds a verdict and an id binding on top; it does
+// not grant access, and nothing here waits for it.
 
 // After a redeploy the same URL can serve the PREVIOUS version's bytes for
 // minutes with nothing in the response revealing it (measured: 5 of 45
@@ -117,21 +119,22 @@ export async function publish(options: { folder: string }): Promise<void> {
 		await waitUntilServing(deployed.hostUrl)
 		await verifyDeployed(deployed.hostUrl, id)
 	} finally {
-		// Labelled: unlabelled bare URLs let a caller take the first line as
-		// "the trove's URL", and the host URL is the one the remix skill says
-		// never to pass on.
+		// Labelled, because two URLs and an id go out together and an unlabelled
+		// line invites a caller to share whichever came first.
 		console.log(`id: ${id}`)
-		console.log(`host: ${deployed.hostUrl}`)
+		console.log(`trove: ${deployed.hostUrl}`)
 		if (deployed.claim !== null) {
 			console.log(`claim: ${deployed.claim.url}`)
 			console.log(
 				`unclaimed, this trove is deleted in ${deployed.claim.deadlineMinutes} minutes`,
 			)
 		}
-		// The trove is deployed but not yet certified, and nothing else states
-		// how to finish. Naming the exact command is what stops "live but
-		// unregistered" from being a state with no exit.
-		console.log("next: register it, or it has no canonical URL:")
+		// The trove is readable already; what is missing is the id binding and an
+		// independent verdict. Naming the exact command AND what it buys is what
+		// keeps a required step from reading like an optional one.
+		console.log(
+			"next: register it — this claims the id so nobody else can, and publishes a verdict a reader can check:",
+		)
 		console.log(`  npx @usecontextlayer/trove register ${deployed.hostUrl}`)
 	}
 }

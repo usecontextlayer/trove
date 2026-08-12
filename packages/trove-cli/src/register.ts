@@ -1,16 +1,25 @@
-import { MANIFEST_PATH, manifestSchema } from "@usecontextlayer/trove-standard"
+import {
+	MANIFEST_PATH,
+	manifestSchema,
+	recordUrlForId,
+} from "@usecontextlayer/trove-standard"
 import { registerTrove } from "@/src/registry"
 import { describeFailures, summarizeReport } from "@/src/report"
 
 // Registering (§8) — a separate command from publishing, and neither does the
-// other. Publishing gets the bytes live; registering asks the registry to
-// certify them and mints the id↔host binding the canonical URL resolves
-// through. Fusing them made one exit code answer two different questions and
-// left "live but unregistered" a state with no way out.
+// other. Publishing gets the bytes live and the trove is readable from that
+// moment on, by anyone, with no involvement from us. Registering is what binds
+// the id to that host and publishes an independent verdict about it.
 //
-// The only argument is the host URL, because the trove carries its own id in
-// the manifest it serves (§7): reading the id from the host is the same act
-// that proves control of it, so there is nothing to carry between the two
+// So registration is REQUIRED of a creator and OPTIONAL to a reader, and those
+// are different things. What it buys is not access — it is the three things a
+// trove cannot establish about itself: that nobody else can claim its id, that
+// its conformance was observed by someone other than its author, and that a
+// remix naming it as parent can be corroborated.
+//
+// The only argument is the trove's URL, because the trove carries its own id in
+// the manifest it serves (§7): reading the id from the deployment is the same
+// act that proves control of it, so there is nothing to carry between the two
 // commands.
 
 /**
@@ -36,7 +45,7 @@ export function parseHostUrl(registryUrl: string, hostUrl: string): string {
 	}
 	if (url.origin === new URL(registryUrl).origin) {
 		throw new Error(
-			`${hostUrl} is a canonical URL, and trove register takes the HOST url — the "host:" line publish printed. The canonical URL is what registering CREATES; it does not resolve until then.`,
+			`${hostUrl} is a Trove registry URL, not a trove. trove register takes the trove's own URL — the "trove:" line publish printed.`,
 		)
 	}
 	return url.origin
@@ -74,14 +83,18 @@ export async function register(options: {
 
 	const record = await registerTrove(registryUrl, parsed.data.id, hostUrl)
 
-	console.log(`canonical: ${record.canonical}`)
+	// The trove's URL is repeated here on purpose: it is the thing to share, it
+	// was printed by a different command, and this is the moment a creator is
+	// looking for something to hand over.
+	console.log(`trove: ${hostUrl}`)
+	console.log(`record: ${recordUrlForId(parsed.data.id)}`)
 	console.log(`checks: ${summarizeReport(record.contractCheck)}`)
 	// A trove that fails its checks is still RECORDED (§7: identity gates
 	// registration, conformance does not) — but it must never read as success.
 	// The stored verdict is the entire signal, and it is published verbatim.
 	if (!record.contractCheck.ok) {
 		console.error(
-			`this trove FAILED its contract checks. It is registered — the registry publishes this verdict at ${record.canonical}.json — but it does not conform:\n${describeFailures(record.contractCheck)}`,
+			`this trove FAILED its contract checks. It is registered — the registry publishes this verdict at ${recordUrlForId(parsed.data.id)} — but it does not conform:\n${describeFailures(record.contractCheck)}`,
 		)
 		process.exitCode = 1
 	}

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
 	AGENTS_MD_PATH,
 	type ContractCheck,
-	canonicalUrlForId,
+	CURRENT_STANDARD,
 	checkTrove,
 	INDEX_PATH,
 	MANIFEST_PATH,
@@ -14,7 +14,7 @@ import {
 } from "@/index"
 
 // An in-memory conformant trove built from the standard's OWN primitives
-// (renderMandatedBlock, canonicalUrlForId, real sha256 digests) — the reader
+// (renderMandatedBlock, real sha256 digests) — the reader
 // is the seam the checker defines; the content is real, never hand-guessed.
 
 interface Served {
@@ -62,7 +62,6 @@ ${renderMandatedBlock(id)}
 </body></html>
 `
 	const manifest = {
-		canonical: canonicalUrlForId(id),
 		files: [
 			{
 				digest: digestOf(indexHtml),
@@ -84,7 +83,7 @@ ${renderMandatedBlock(id)}
 			},
 		],
 		id,
-		standard: 1,
+		standard: CURRENT_STANDARD,
 	}
 	return {
 		"/data.csv": { body: dataCsv, contentType: "text/csv; charset=utf-8" },
@@ -436,9 +435,10 @@ describe("checkTrove", () => {
 	})
 
 	it("names the real cause when the manifest id is malformed", async () => {
-		// canonicalUrlForId asserts and throws; called from inside superRefine it
-		// escaped safeParse, and the catch reported "not valid JSON" — the wrong
-		// cause, in all three positions, with the real error swallowed.
+		// A malformed id must be reported AS a malformed id. This once read
+		// "not valid JSON" in all three positions, because the canonical-vs-id
+		// cross-check asserted inside superRefine and threw straight through
+		// safeParse — whose whole contract is that it does not throw.
 		const id = mintId()
 		const responses = conformantTrove(id)
 		const manifestEntry = responses[MANIFEST_PATH]
@@ -458,7 +458,7 @@ describe("checkTrove", () => {
 		const manifestEntry = responses[MANIFEST_PATH]
 		if (!manifestEntry) throw new Error("fixture missing manifest")
 		const manifest = JSON.parse(manifestEntry.body) as Record<string, unknown>
-		manifest.standard = 2
+		manifest.standard = CURRENT_STANDARD + 1
 		manifestEntry.body = JSON.stringify(manifest)
 		const { report } = await checkTrove({ read: memoryReader(responses) })
 		expect(report.checks.find((check) => check.name === "manifest")?.detail).toContain(

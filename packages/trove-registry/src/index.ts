@@ -1,5 +1,4 @@
 import {
-	canonicalUrlForId,
 	checkTrove,
 	httpReader,
 	ID_PATTERN,
@@ -44,10 +43,13 @@ function parseHostOrigin(hostUrl: string): string | null {
 	return url.origin
 }
 
-/** The public record served at /a/<id>.json — one row per trove. */
+/**
+ * The public record served at /a/<id>.json — one row per trove, and the ONLY
+ * thing the registry claims. It carries no canonical URL because there is no
+ * such thing: a trove has one address, its own, and `hostUrl` is it.
+ */
 function recordFromRow(row: Trove): Record<string, unknown> {
 	return {
-		canonical: canonicalUrlForId(row.id),
 		contractCheck: JSON.parse(row.contract_check),
 		hostUrl: row.host_url,
 		id: row.id,
@@ -183,10 +185,24 @@ app.get(RECORD_ROUTE, async (c) => {
 	return c.json(recordFromRow(row))
 })
 
-// /a/<id> and its whole subtree 302 to the host (§7) — always, for every
-// method. Safe because the host enforces ownership: an unclaimed deployment is
-// deleted after 60 minutes, so this points either at a dead URL or at
-// identified-owner content.
+// /a/<id> 302s to the trove's host — a lookup from an id to wherever the trove
+// actually lives, and nothing more. Safe because the host enforces ownership:
+// an unclaimed deployment is deleted after 60 minutes, so this points either at
+// a dead URL or at identified-owner content.
+//
+// The SUBTREE form (`/a/<id>/<path>`) is deliberately gone, and its absence is
+// load-bearing rather than incidental. While it existed, a trove's page was
+// reachable at two origins, so the root-relative links in the page Trove itself
+// generates resolved against OURS — where `/AGENTS.md` and `/trove.json` are
+// the platform's own files and answer 200 with the wrong document, silently,
+// on exactly the two paths the read protocol depends on. Deleting the route
+// removes that by construction.
+//
+// It also deletes an entire defence. Forwarding an attacker-supplied subpath
+// was what made this route an open-redirect risk in the first place (measured
+// live: `//evil.example/x` was a protocol-relative authority that discarded the
+// base origin), and every guard here existed to contain it. With no path to
+// forward there is nothing to contain.
 async function redirectToHost(
 	id: string,
 	c: Context<{ Bindings: Env }>,
@@ -195,34 +211,12 @@ async function redirectToHost(
 	if (!row) {
 		return c.json({ error: "unknown trove id" }, 404)
 	}
-	// The subtree remainder is a PATH, never an authority. It is assigned
-	// through the URL object's own setters, which parse it in path-start state
-	// — a state that cannot reach authority state, so "//evil.example/x" stays
-	// a path on host_url. Resolving it relatively instead (new URL(sub, host))
-	// does the opposite: a leading "//" is a network-path reference that
-	// discards the base origin, which was a live open redirect on the canonical
-	// domain, and "//" alone threw, surfacing as a 500.
-	const requestUrl = new URL(c.req.url)
-	const hostOrigin = new URL(row.host_url).origin
-	// The id segment ends at the next "/" — derived from the encoded pathname
-	// rather than the decoded route param, so a percent-encoded id cannot shift
-	// the boundary.
-	const idEnd = requestUrl.pathname.indexOf("/", "/a/".length)
-	const location = new URL(row.host_url)
-	location.pathname = idEnd === -1 ? "" : requestUrl.pathname.slice(idEnd)
-	location.search = requestUrl.search
-	// §3 requires every consumer resolving a path to verify the resolved origin
-	// is the trove's. The setters above make this unreachable; it is kept
-	// because a silent off-host redirect is the failure this route must never
-	// have.
-	if (location.origin !== hostOrigin) {
-		return c.json({ error: "refusing to redirect off the trove's host" }, 500)
-	}
-	return new Response(null, { headers: { location: location.href }, status: 302 })
+	// host_url is stored as an origin (parseHostOrigin), so there is no path,
+	// query, or fragment here to build, escape, or verify.
+	return new Response(null, { headers: { location: row.host_url }, status: 302 })
 }
 
 app.all("/a/:id", (c) => redirectToHost(c.req.param("id"), c))
-app.all("/a/:id/*", (c) => redirectToHost(c.req.param("id"), c))
 
 app.notFound((c) => c.json({ error: "not found" }, 404))
 

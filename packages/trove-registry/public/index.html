@@ -31,11 +31,11 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--edge);
 
 <h2>Publish a folder</h2>
 <pre>npx @usecontextlayer/trove publish &lt;folder&gt;
-npx @usecontextlayer/trove register &lt;host-url&gt;</pre>
-<p>Two steps, and neither runs the other. Publishing puts the bytes online; registering certifies them and is what gives the trove its canonical URL — the one to share.</p>
+npx @usecontextlayer/trove register &lt;trove-url&gt;</pre>
+<p>Two steps, and neither runs the other. Publishing puts the bytes online and prints the trove's URL — that is the trove, share it. Registering claims its id so nobody else can, and publishes a verdict a reader can check.</p>
 
 <h2>Remix someone else's trove</h2>
-<pre>npx @usecontextlayer/trove remix &lt;canonical-url&gt;
+<pre>npx @usecontextlayer/trove remix &lt;trove-url&gt;
 # edit, then publish and register as above</pre>
 <p>Every file is verified against its digest before you build on it. The original is untouched; your remix records its lineage.</p>
 

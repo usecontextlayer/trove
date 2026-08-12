@@ -6,7 +6,7 @@ export {
 	matchesMandatedDiv,
 	renderMandatedBlock,
 } from "@/lib/block"
-export { canonicalUrlForId, TROVE_ORIGIN } from "@/lib/canonical"
+export { recordUrlForId, TROVE_ORIGIN } from "@/lib/canonical"
 export {
 	type CheckTroveResult,
 	type ContractCheck,

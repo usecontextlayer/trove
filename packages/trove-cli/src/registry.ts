@@ -5,7 +5,6 @@ import { describeFailures } from "@/src/report"
 // wires it from env.ts) so the seam stays explicit.
 
 export interface RegistryRecord {
-	canonical: string
 	contractCheck: ContractCheckReport & { checkedAt: string }
 	hostUrl: string
 	id: string

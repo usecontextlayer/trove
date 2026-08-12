@@ -28,10 +28,15 @@ describe("renderMandatedBlock", () => {
 		expect(MANDATED_SCRIPT_TAG).not.toContain(other)
 	})
 
-	it("names both canonical URLs as plain text", () => {
+	it("names the platform manual as plain text, and the trove's own relatively", () => {
 		const block = renderMandatedBlock(id)
 		expect(block).toContain(`${TROVE_ORIGIN}/AGENTS.md`)
-		expect(block).toContain(`${TROVE_ORIGIN}/a/${id}/AGENTS.md`)
+		// The trove's own manual is named relatively because a trove has exactly
+		// one URL — its own. The absolute form pointed at a registry subtree
+		// that no longer exists, and while it did exist it was what made a
+		// trove's page resolvable at two different origins.
+		expect(block).toContain("this trove's own /AGENTS.md")
+		expect(block).not.toContain(`${TROVE_ORIGIN}/a/`)
 	})
 
 	it("hides the div in the served HTML", () => {

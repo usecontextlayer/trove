@@ -96,7 +96,6 @@ function manifest(): void {
 		}
 	})
 	const platformManifest = {
-		canonical: TROVE_ORIGIN,
 		files,
 		id: TROVE_ORIGIN,
 		note: "Trove itself is a trove in spirit, not in exactness: its id is its URL, /trove.js is elided (its digest changes with each build), and /a/* and /register are routes, not files.",

@@ -2,15 +2,15 @@
 
 A **trove** is a set of static files published at a URL. Any agent can fetch it, verify it, and remix it into a new trove of its own. Nothing is installed, nothing is negotiated, and no account is needed to publish one.
 
-**Trove** (capitalised) is the platform that certifies those URLs and serves the canonical ones: <https://trove.usecontextlayer.com>.
+**Trove** (capitalised) is the platform that records and certifies those URLs: <https://trove.usecontextlayer.com>. A trove is served from its creator's own account, so reading one never involves Trove at all.
 
 ```sh
-npx @usecontextlayer/trove publish ./my-folder      # prints the host URL
-npx @usecontextlayer/trove register <host-url>      # prints the canonical URL
+npx @usecontextlayer/trove publish ./my-folder     # prints the trove's URL
+npx @usecontextlayer/trove register <trove-url>     # claims the id, publishes a verdict
 npx @usecontextlayer/trove remix https://trove.usecontextlayer.com/a/<id>
 ```
 
-> **Publishing and registering are two commands, and neither runs the other.** Publishing puts the bytes online; registering certifies them and is what makes the trove's canonical URL resolve. Share the canonical one.
+> **Publishing and registering are two commands, and neither runs the other.** Publishing puts the bytes online — the trove is readable immediately, from the creator's own account. Registering binds the id to that URL and publishes an independent verdict about it; it is required of a creator and optional to a reader.
 
 > With no Cloudflare credentials, publishing gives you a **60-minute preview** — the CLI prints a claim URL and its deadline, and the deployment is deleted unless you open it. With any wrangler credential, it publishes permanently into that account.
 
@@ -33,7 +33,7 @@ Everything the trove serves appears in `trove.json`, so a remix is deterministic
 
 | package | what it is |
 |---|---|
-| `packages/trove-standard` | the contract as code: id grammar, canonical URLs, the mandated block, the `trove.json` schema, and the conformance checker. Runs in node, workerd and the browser |
+| `packages/trove-standard` | the contract as code: id grammar, the mandated block, the `trove.json` schema, and the conformance checker. Runs in node, workerd and the browser |
 | `packages/trove-registry` | the registry: a Hono Worker on Cloudflare with D1, plus the platform's own served assets |
 | `packages/trove-cli` | `@usecontextlayer/trove` — the `trove` binary: `publish`, `register` and `remix` |
 | `packages/trove-embed` | `trove.js` — the self-contained browser script every trove loads |

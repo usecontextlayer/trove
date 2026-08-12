@@ -1,6 +1,5 @@
 import { z } from "zod"
-import { canonicalUrlForId } from "@/lib/canonical"
-import { ID_PATTERN, isWellFormedId } from "@/lib/id"
+import { ID_PATTERN } from "@/lib/id"
 
 // The manifest — trove.json (§3 of the standard): identity, lineage, and
 // inventory. Per-file fields are the OCI content descriptor's required triple
@@ -65,11 +64,20 @@ export const manifestFileSchema = z.object({
 	size: z.number().int().nonnegative(),
 })
 
+// A manifest does NOT state its own URL, and cannot: the trove's URL is
+// assigned by the host at deploy time, while the manifest is written before it
+// — so a self-reference would force a second deploy, and the bytes verified
+// would stop being the bytes shipped. It is also unnecessary for the same
+// reason trove.json excludes itself: whoever is reading it already holds the
+// URL they fetched it from. `id` remains, as the identity registration keys on
+// and the mandated block carries.
 export const manifestSchema = z
 	.object({
-		canonical: z.url(),
 		files: z.array(manifestFileSchema),
 		id: z.string().regex(ID_PATTERN),
+		// The trove this was remixed from, at its own URL — where it is actually
+		// served, since that is the only address a trove has. `parentDigest` pins
+		// which version was remixed.
 		parent: z.url().optional(),
 		parentDigest: z.string().regex(DIGEST_PATTERN).optional(),
 		// A JSON number — not a string, not dotted. Consumers branch with >=; a
@@ -80,22 +88,8 @@ export const manifestSchema = z
 		standard: z.number().int().min(1),
 	})
 	.superRefine((manifest, ctx) => {
-		// Guarded: canonicalUrlForId ASSERTS a well-formed id and throws, which
-		// escaped safeParse — whose whole contract is that it does not throw —
-		// and surfaced three layers up as "not valid JSON", the wrong cause.
-		if (!isWellFormedId(manifest.id)) {
-			return
-		}
-		if (manifest.canonical !== canonicalUrlForId(manifest.id)) {
-			ctx.addIssue({
-				code: "custom",
-				message: `canonical must be derived from id: expected ${canonicalUrlForId(manifest.id)}`,
-				path: ["canonical"],
-			})
-		}
-		// parent is the canonical URL of the trove this was remixed from;
-		// parentDigest pins which version. Both absent on an original, both
-		// present on a remix — never one without the other.
+		// Both absent on an original, both present on a remix — never one without
+		// the other.
 		if ((manifest.parent === undefined) !== (manifest.parentDigest === undefined)) {
 			ctx.addIssue({
 				code: "custom",

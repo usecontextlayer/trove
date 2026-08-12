@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url"
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers"
 import {
 	AGENTS_MD_PATH,
-	canonicalUrlForId,
+	CURRENT_STANDARD,
 	MANIFEST_PATH,
 	renderMandatedBlock,
 } from "@usecontextlayer/trove-standard"
@@ -45,7 +45,6 @@ ${renderMandatedBlock(FIXTURE_TROVE_ID)}
 const agentsMd = "# Fixture trove\n\nA tiny trove used by the registry's tests.\n"
 const dataCsv = "a,b\n1,2\n"
 const manifest = {
-	canonical: canonicalUrlForId(FIXTURE_TROVE_ID),
 	files: [
 		{
 			digest: digest(indexHtml),
@@ -67,7 +66,7 @@ const manifest = {
 		},
 	],
 	id: FIXTURE_TROVE_ID,
-	standard: 1,
+	standard: CURRENT_STANDARD,
 }
 
 const fixtureResponses: Record<string, { body: string; contentType: string }> = {

@@ -12,7 +12,6 @@ import { describe, expect, it } from "vitest"
 const publicDir = path.join(import.meta.dirname, "..", "public")
 
 interface PlatformManifest {
-	canonical: string
 	files: { digest: string; mediaType: string; path: string; size: number }[]
 	id: string
 	standard: number
@@ -23,12 +22,11 @@ const manifest = JSON.parse(
 ) as PlatformManifest
 
 describe("the platform's own trove.json", () => {
-	it("carries the special id — the platform's URL, for id and canonical both", () => {
+	it("carries the special id — the platform's own URL", () => {
 		// Trove is a trove in spirit, not in exactness: its id is its URL.
 		// NOTE for consumers: nothing may treat this CLAIM as proof of being the
 		// platform — trove.json can be faked; platform detection is by location.
 		expect(manifest.id).toBe(TROVE_ORIGIN)
-		expect(manifest.canonical).toBe(TROVE_ORIGIN)
 		expect(manifest.standard).toBe(1)
 	})
 

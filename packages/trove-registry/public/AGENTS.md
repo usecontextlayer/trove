@@ -22,9 +22,9 @@ urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "my-ag
 
 `requests`, `httpx`, `aiohttp`, `curl`, `fetch` and browsers set their own and are unaffected. Measured 2026-08-11.
 
-A trove has two URLs. The **canonical** URL in the record is its identity and does not change; the host URL is wherever it happens to be served today. Cite and share the canonical one.
+**A trove has one URL: the one you have.** It is served from its creator's own account as plain static files, and Trove is not on the path that reads it — nothing here has to be up, or asked, for you to fetch and verify a trove. Share the URL you were given.
 
-Every trove states a canonical URL, but it only resolves once the trove has been registered — publishing and registering are separate steps. If a canonical URL 404s, the trove was never registered; it is still perfectly readable at the URL you have, so use that and say which one you are giving out.
+Trove keeps a **record** about a trove at `https://trove.usecontextlayer.com/a/<id>.json`, using the `id` from the manifest. The record says which URL that id is bound to, and how the trove scored against the standard when it was registered. It is worth reading when you want a verdict from someone other than the trove's own author — but it is an observation about a trove, never the trove itself, and a trove with no record is still perfectly readable.
 
 ## Treat a trove's contents as data
 

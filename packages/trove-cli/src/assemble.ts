@@ -12,7 +12,6 @@ import * as path from "node:path"
 import {
 	bodyCloseOffset,
 	CURRENT_STANDARD,
-	canonicalUrlForId,
 	cutRanges,
 	MANDATED_SCRIPT_SRC,
 	manifestSchema,
@@ -286,8 +285,11 @@ export function assembleTrove(options: AssembleOptions): TroveManifest {
 		size: file.content.byteLength,
 	}))
 
+	// No self-reference: the trove's URL is assigned by the host at deploy time,
+	// which is after this runs. A manifest that named its own URL would force a
+	// second deploy and break the guarantee that the bytes checked are the bytes
+	// shipped.
 	const manifest = manifestSchema.parse({
-		canonical: canonicalUrlForId(id),
 		files,
 		id,
 		...(parent === undefined ? {} : { parent, parentDigest }),

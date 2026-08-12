@@ -6,12 +6,12 @@ import { dev } from "@/src/dev"
 import { env } from "@/src/env"
 import { publish } from "@/src/publish"
 import { parseHostUrl, register } from "@/src/register"
-import { parseCanonicalUrl, remixTrove } from "@/src/remix"
+import { parseTroveUrl, remixTrove } from "@/src/remix"
 
 const program = new Command()
 	.name("trove")
 	.description(
-		"Publish and remix troves — folders of static files served at a URL any agent can fetch, verify, and remix. Publishing a trove is two steps that run separately: `publish` puts the bytes online, then `register` certifies them and gives the trove its canonical URL. Neither command runs the other.",
+		"Publish and remix troves — folders of static files served at a URL any agent can fetch, verify, and remix. A trove is served from your own Cloudflare account and has exactly one URL: its own. Publishing is two steps that run separately: `publish` puts the bytes online and they are readable immediately, then `register` claims the trove's id and publishes an independent verdict about it. Neither command runs the other, and reading a trove never involves Trove at all.",
 	)
 
 // Ports are semantic input, so they are coerced by a schema rather than by
@@ -42,7 +42,7 @@ program
 program
 	.command("publish")
 	.description(
-		"Put a folder online as a trove: assemble it (mandated block, trove.json, headers), check it against the standard, deploy it to Cloudflare, and verify the bytes that came back. Prints the host URL. Does NOT register the trove and does NOT print a canonical URL — run `trove register <host-url>` next, which is what mints one. ANY wrangler credential deploys into that account permanently — a `wrangler login` session counts, not just CLOUDFLARE_API_TOKEN. With no credential at all this is an anonymous 60-minute preview that is deleted unless you open the claim URL. Publish prints which of the two it did before deploying.",
+		"Put a folder online as a trove: assemble it (mandated block, trove.json, headers), check it against the standard, deploy it to Cloudflare, and verify the bytes that came back. Prints the trove's URL, which is readable by anyone from that moment — share that URL. Does NOT register it: run `trove register <trove-url>` next, which claims the id and publishes a verdict readers can check. ANY wrangler credential deploys into that account permanently — a `wrangler login` session counts, not just CLOUDFLARE_API_TOKEN. With no credential at all this is an anonymous 60-minute preview that is deleted unless you open the claim URL. Publish prints which of the two it did before deploying.",
 	)
 	.argument("<folder>", "the folder to publish; must contain an AGENTS.md")
 	.action(async (folder: string) => {
@@ -55,12 +55,9 @@ program
 program
 	.command("register")
 	.description(
-		"Register a trove that is already online, and print its canonical URL. Reads the trove's id from the trove.json it serves — which is also what proves you are registering the trove that is actually there — then records the id↔host binding the canonical URL redirects through. An id binds to one host forever, so re-running this against the same host is how a redeployed trove is re-checked, while a different host is refused. A trove that fails its contract checks is still registered: the failing report is stored and published, and this command prints it and exits non-zero.",
+		"Register a trove that is already online. Reads the trove's id from the trove.json it serves — which is also what proves you control the trove you are registering — then binds that id to that URL and publishes the contract-check verdict at /a/<id>.json. This does not affect whether the trove can be read; it closes three things a trove cannot establish about itself: that nobody else can claim its id, that its conformance was observed by someone other than its author, and that a remix naming it as parent can be corroborated. An id binds to one URL forever, so re-running this against the same one is how a redeployed trove is re-checked, while a different one is refused. A trove that fails its checks is still registered: the failing report is stored and published, and this command prints it and exits non-zero.",
 	)
-	.argument(
-		"<host-url>",
-		"the trove's host URL — the `host:` line publish printed, not the canonical URL",
-	)
+	.argument("<trove-url>", "the trove's URL — the `trove:` line publish printed")
 	.action(async (hostUrl: string) => {
 		// Parsed at the boundary, like remix's canonical URL — the core takes a
 		// normalized origin.
@@ -73,14 +70,16 @@ program
 program
 	.command("remix")
 	.description(
-		"Fetch a trove by its canonical URL, verify every file against its manifest digests, strip the inherited identity, and record lineage for the next publish.",
+		"Fetch a trove by its URL, verify every file against its manifest digests, strip the inherited identity, and record lineage for the next publish. This is the verified read the standard describes — it hashes every file and refuses the whole trove on any mismatch — so reach for it rather than hand-rolling the check.",
 	)
-	.argument("<canonical-url>", "the trove's canonical URL (…/a/<id>), never a host URL")
+	.argument("<trove-url>", "the trove's URL")
 	.argument("[dest]", "destination directory (default: ./trove-remix-<id>)")
 	.action(async (from: string, dest: string | undefined) => {
-		const canonicalUrl = parseCanonicalUrl(env.TROVE_REGISTRY_URL, from)
-		const destDir = dest ?? `./trove-remix-${canonicalUrl.slice(-24, -16)}`
-		const { fileCount } = await remixTrove({ canonicalUrl, destDir })
+		const troveUrl = parseTroveUrl(env.TROVE_REGISTRY_URL, from)
+		const { destDir, fileCount } = await remixTrove({
+			...(dest === undefined ? {} : { destDir: dest }),
+			troveUrl,
+		})
 		console.log(`${fileCount} files verified and copied to ${destDir}`)
 		// The scoped npx form, never a bare `trove` — an agent that got here via
 		// `npx @usecontextlayer/trove remix …` has no `trove` on PATH, and the

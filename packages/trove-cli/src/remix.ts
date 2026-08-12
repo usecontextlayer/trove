@@ -1,11 +1,7 @@
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import * as path from "node:path"
-import {
-	ID_PATTERN,
-	manifestSchema,
-	parseElements,
-} from "@usecontextlayer/trove-standard"
+import { manifestSchema, parseElements } from "@usecontextlayer/trove-standard"
 import { REMIX_MARKER_FILE } from "@/src/assemble"
 
 // Remixing (§9): fetch is where lineage is captured and inherited identity is
@@ -31,21 +27,28 @@ export function readRemixMarker(sourceDir: string): RemixMarker | null {
 }
 
 /**
- * The remix argument is the CANONICAL URL, never a host URL (§9) — canonical is
- * the identity, and it is what gets recorded as parent. §9 also ruled that
- * remixing is a command, not a flag; the rejected `--from` spelling survived in
- * this message, so an agent that got the argument wrong was corrected toward an
- * option the CLI does not have and failed twice on one mistake.
+ * The remix argument is the trove's OWN URL — the one address a trove has, and
+ * the one that gets recorded as `parent`.
+ *
+ * The one confusion worth naming is a registry lookup URL (`<registry>/a/<id>`).
+ * It is not a trove URL: it 302s to one, and its subtree does not exist, so
+ * every path built under it 404s. An agent that reaches for it has almost
+ * certainly read the record and taken the wrong field, so the message names the
+ * right one.
  */
-export function parseCanonicalUrl(registryUrl: string, from: string): string {
-	const prefix = `${registryUrl}/a/`
-	const id = from.startsWith(prefix) ? from.slice(prefix.length) : null
-	if (id === null || !ID_PATTERN.test(id)) {
+export function parseTroveUrl(registryUrl: string, from: string): string {
+	let url: URL
+	try {
+		url = new URL(from)
+	} catch {
+		throw new Error(`"${from}" is not a URL. trove remix takes the trove's URL.`)
+	}
+	if (url.origin === new URL(registryUrl).origin) {
 		throw new Error(
-			`trove remix takes the trove's canonical URL (${registryUrl}/a/<id>), not a host URL. The canonical URL is in the trove's own trove.json.`,
+			`${from} is a Trove registry URL, not a trove. Pass the trove's own URL — the registry publishes it as "hostUrl" at ${registryUrl}/a/<id>.json.`,
 		)
 	}
-	return from
+	return url.href.replace(/\/$/, "")
 }
 
 /**
@@ -66,33 +69,36 @@ function clearInheritedIdentity(html: string): string {
 }
 
 export async function remixTrove(options: {
-	canonicalUrl: string
-	destDir: string
-}): Promise<{ fileCount: number }> {
-	const { canonicalUrl, destDir } = options
-
-	if (existsSync(destDir) && readdirSync(destDir).length > 0) {
-		throw new Error(`${destDir} is not empty.`)
-	}
+	destDir?: string
+	troveUrl: string
+}): Promise<{ destDir: string; fileCount: number }> {
+	const { troveUrl } = options
 
 	// Hash the manifest bytes exactly as fetched — this pins WHICH version was
 	// remixed, since troves are mutable and redeploy in place.
-	const manifestResponse = await fetch(`${canonicalUrl}/trove.json`)
+	const manifestResponse = await fetch(`${troveUrl}/trove.json`)
 	if (!manifestResponse.ok) {
 		throw new Error(
-			`${canonicalUrl}/trove.json answered ${manifestResponse.status} — not a readable trove.`,
+			`${troveUrl}/trove.json answered ${manifestResponse.status} — not a readable trove.`,
 		)
 	}
 	const manifestBytes = Buffer.from(await manifestResponse.arrayBuffer())
 	const parentDigest = `sha256:${createHash("sha256").update(manifestBytes).digest("hex")}`
 	const manifest = manifestSchema.parse(JSON.parse(manifestBytes.toString("utf8")))
 
+	// The default destination is named from the trove's real id, which is only
+	// known once the manifest is read — a trove's URL no longer contains it.
+	const destDir = options.destDir ?? `./trove-remix-${manifest.id.slice(0, 8)}`
+	if (existsSync(destDir) && readdirSync(destDir).length > 0) {
+		throw new Error(`${destDir} is not empty.`)
+	}
+
 	mkdirSync(destDir, { recursive: true })
 
 	for (const file of manifest.files) {
-		const response = await fetch(`${canonicalUrl}${file.path}`)
+		const response = await fetch(`${troveUrl}${file.path}`)
 		if (!response.ok) {
-			throw new Error(`${canonicalUrl}${file.path} answered ${response.status}.`)
+			throw new Error(`${troveUrl}${file.path} answered ${response.status}.`)
 		}
 		const content = Buffer.from(await response.arrayBuffer())
 		const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`
@@ -131,11 +137,11 @@ export async function remixTrove(options: {
 
 	// The parent's trove.json is never written — the manifest excludes
 	// itself, so the copy is identity-free by construction except the marker.
-	const marker: RemixMarker = { parent: canonicalUrl, parentDigest }
+	const marker: RemixMarker = { parent: troveUrl, parentDigest }
 	writeFileSync(
 		path.join(destDir, REMIX_MARKER_FILE),
 		`${JSON.stringify(marker, null, "\t")}\n`,
 	)
 
-	return { fileCount: manifest.files.length }
+	return { destDir, fileCount: manifest.files.length }
 }

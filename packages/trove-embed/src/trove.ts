@@ -34,7 +34,6 @@ const ID_PATTERN = /^[0-9a-hj-km-np-tv-z]{24}$/
 const BAR_HEIGHT = 34
 
 interface RegistryRecord {
-	canonical?: string
 	contractCheck?: { ok?: boolean }
 }
 
@@ -341,7 +340,7 @@ const MARKUP = `
 		<div class="pane">
 			<p class="label">Identity</p>
 			<dl>
-				<dt>canonical</dt><dd class="canonical"></dd>
+				<dt>registry</dt><dd class="record"></dd>
 				<dt>id</dt><dd class="full-id"></dd>
 				<dt>standard</dt><dd class="standard"></dd>
 				<dt>lineage</dt><dd class="lineage"></dd>
@@ -411,22 +410,26 @@ function render(registryOrigin: string, id: string | null, instructions: string)
 	resolveRegistration(
 		query(".dot"),
 		query(".state"),
-		query(".canonical"),
+		query(".record"),
 		id,
 		registryOrigin,
 	)
 }
 
 /**
- * One registry read answers two questions - the bar's status and whether the
- * canonical URL resolves yet - so it is fetched once and both are painted from
- * the same answer. Rendering the canonical as a link before registration is
- * how a reader ends up citing a URL that 404s.
+ * One registry read answers two questions - the bar's status and whether a
+ * record exists yet - so it is fetched once and both are painted from the same
+ * answer. Rendering the record as a link before registration is how a reader
+ * ends up citing a URL that 404s.
+ *
+ * Note what is NOT shown here: a canonical URL. A trove has one address - the
+ * one this page is being served from - and the registry holds an observation
+ * about it, not a second name for it.
  */
 function resolveRegistration(
 	dot: HTMLElement,
 	state: HTMLElement,
-	canonicalEl: HTMLElement,
+	recordEl: HTMLElement,
 	id: string | null,
 	registryOrigin: string,
 ): void {
@@ -440,7 +443,7 @@ function resolveRegistration(
 		link.href = href
 		link.rel = "noopener"
 		link.textContent = href
-		canonicalEl.replaceChildren(link)
+		recordEl.replaceChildren(link)
 	}
 
 	if (id === null) {
@@ -449,7 +452,7 @@ function resolveRegistration(
 		return
 	}
 
-	const canonical = `${registryOrigin}/a/${id}`
+	const recordUrl = `${registryOrigin}/a/${id}.json`
 
 	void fetch(`${registryOrigin}/a/${id}.json`)
 		.then(async (response) => {
@@ -457,11 +460,11 @@ function resolveRegistration(
 				paint("off", "Not registered")
 				const pending = document.createElement("span")
 				pending.className = "pending"
-				pending.textContent = canonical
+				pending.textContent = recordUrl
 				const hint = document.createElement("small")
 				hint.textContent = "resolves once this trove is registered"
 				pending.append(hint)
-				canonicalEl.replaceChildren(pending)
+				recordEl.replaceChildren(pending)
 				return
 			}
 			if (!response.ok) {
@@ -472,13 +475,13 @@ function resolveRegistration(
 				record.contractCheck?.ok === true ? "ok" : "warn",
 				record.contractCheck?.ok === true ? "Registered" : "Failed its last check",
 			)
-			asLink(canonical)
+			asLink(recordUrl)
 		})
 		.catch(() => {
 			paint("off", "Registry unreachable")
 			// Unknown registration state - plain text, since we cannot claim it
 			// resolves and cannot claim it does not.
-			canonicalEl.textContent = canonical
+			recordEl.textContent = recordUrl
 		})
 }
 

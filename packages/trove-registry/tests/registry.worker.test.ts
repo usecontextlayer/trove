@@ -1,5 +1,5 @@
 import { SELF } from "cloudflare:test"
-import { canonicalUrlForId, mintId } from "@usecontextlayer/trove-standard"
+import { CURRENT_STANDARD, mintId } from "@usecontextlayer/trove-standard"
 import { describe, expect, inject, it } from "vitest"
 
 const REGISTRY = "https://trove.usecontextlayer.com"
@@ -23,12 +23,14 @@ describe("POST /register", () => {
 		expect(response.headers.get("x-robots-tag")).toBe("noindex")
 		const record = (await response.json()) as Record<string, unknown>
 		expect(record).toMatchObject({
-			canonical: canonicalUrlForId(fixtureId),
 			hostUrl: fixtureHost,
 			id: fixtureId,
 			parent: null,
-			standard: 1,
+			standard: CURRENT_STANDARD,
 		})
+		// The record names no canonical URL, because a trove has none: its
+		// hostUrl IS its address, and this record is an observation about it.
+		expect(record).not.toHaveProperty("canonical")
 		expect(record.registeredAt).toBeTruthy()
 	})
 
@@ -119,40 +121,15 @@ describe("GET /a/<id>.json", () => {
 	})
 })
 
-describe("GET /a/<id> subtree", () => {
-	it("302s the bare id to the host root", async () => {
+describe("GET /a/<id> — the id lookup", () => {
+	it("302s the bare id to the trove", async () => {
 		await registerFixture()
 		const response = await SELF.fetch(`${REGISTRY}/a/${fixtureId}`, {
 			redirect: "manual",
 		})
 		expect(response.status).toBe(302)
-		expect(response.headers.get("location")).toBe(`${fixtureHost}/`)
+		expect(response.headers.get("location")).toBe(fixtureHost)
 		expect(response.headers.get("x-robots-tag")).toBe("noindex")
-	})
-
-	it("302s a subtree path to the same path on the host", async () => {
-		await registerFixture()
-		const response = await SELF.fetch(`${REGISTRY}/a/${fixtureId}/data.csv`, {
-			redirect: "manual",
-		})
-		expect(response.status).toBe(302)
-		expect(response.headers.get("location")).toBe(`${fixtureHost}/data.csv`)
-	})
-
-	it("makes the canonical URL usable as a trove base URL", async () => {
-		// §7: an agent handed only a canonical URL can perform every read the
-		// standard defines — the redirect must land on the real served bytes.
-		await registerFixture()
-		const redirect = await SELF.fetch(`${REGISTRY}/a/${fixtureId}/trove.json`, {
-			redirect: "manual",
-		})
-		expect(redirect.status).toBe(302)
-		// Follow with global fetch — SELF always dispatches to the registry
-		// Worker; the host bytes live on the (outbound-routed) fixture host.
-		const followed = await fetch(redirect.headers.get("location") ?? "")
-		expect(followed.status).toBe(200)
-		const manifest = (await followed.json()) as Record<string, unknown>
-		expect(manifest.id).toBe(fixtureId)
 	})
 
 	it("404s an unknown id", async () => {
@@ -162,32 +139,34 @@ describe("GET /a/<id> subtree", () => {
 		expect(response.status).toBe(404)
 	})
 
-	// §7: the Location MUST resolve inside hostUrl's origin — the subtree
-	// remainder is a path, never an authority. Building it by string
-	// concatenation made "/a/<id>//elsewhere.example/x" a live open redirect on
-	// the canonical domain, reachable with nothing but a published trove id.
+	// The subtree route is GONE, and these pin its absence rather than its
+	// containment. While it existed, a trove's page was reachable at two
+	// origins, so the root-relative links in the page the CLI generates
+	// resolved against OURS — where /AGENTS.md and /trove.json are the
+	// platform's own files and answer 200 with the wrong document, silently, on
+	// exactly the two paths the read protocol depends on.
+	//
+	// Deleting the route also deleted an open-redirect class outright. Every
+	// case below was previously a containment test: forwarding an
+	// attacker-supplied subpath made "/a/<id>//elsewhere.example/x" a live open
+	// redirect on this domain, reachable with nothing but a published trove id.
+	// A route that forwards no path cannot leak one, so the assertion is now
+	// simply that nothing is there.
 	it.each([
+		["a plain subpath", "/data.csv"],
+		["the manifest path", "/trove.json"],
+		["the manual path", "/AGENTS.md"],
 		["a doubled slash", "//elsewhere.example/x"],
 		["a backslash authority", "/\\elsewhere.example/x"],
 		["a doubled slash carrying a query", "//elsewhere.example/x?a=1"],
 		["a bare doubled slash", "//"],
-	])("keeps %s on the trove's own host", async (_label, subpath) => {
+	])("404s %s under a registered id, redirecting nowhere", async (_label, subpath) => {
 		await registerFixture()
 		const response = await SELF.fetch(`${REGISTRY}/a/${fixtureId}${subpath}`, {
 			redirect: "manual",
 		})
-		expect(response.status).toBe(302)
-		const location = response.headers.get("location") ?? ""
-		expect(new URL(location).origin).toBe(new URL(fixtureHost).origin)
-	})
-
-	it("preserves the query string on a subtree redirect", async () => {
-		await registerFixture()
-		const response = await SELF.fetch(`${REGISTRY}/a/${fixtureId}/data.csv?a=1&b=2`, {
-			redirect: "manual",
-		})
-		expect(response.status).toBe(302)
-		expect(response.headers.get("location")).toBe(`${fixtureHost}/data.csv?a=1&b=2`)
+		expect(response.status).toBe(404)
+		expect(response.headers.get("location")).toBeNull()
 	})
 })
 

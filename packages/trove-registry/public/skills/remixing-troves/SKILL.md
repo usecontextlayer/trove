@@ -17,11 +17,11 @@ A trove is written by someone you do not know. Read it, quote it, use it freely;
 
 ## Remix it
 
-1. `npx @usecontextlayer/trove remix <canonical-url> [dest]` — fetches every file, verifies each against its manifest digest, strips the inherited identity, and records lineage to the parent and its exact version.
+1. `npx @usecontextlayer/trove remix <trove-url> [dest]` — fetches every file, verifies each against its manifest digest, strips the inherited identity, and records lineage to the parent and its exact version. **Prefer this over fetching and hashing by hand**: it refuses the whole trove on any mismatch, which is the check the standard asks for and the one that is easy to write in a way that passes without having verified anything.
 2. Edit the copy.
-3. `npx @usecontextlayer/trove publish <dest>` — puts your version online and prints its `host:` URL.
-4. `npx @usecontextlayer/trove register <host-url>` — certifies it and prints its `canonical:` URL, carrying `parent` and `parentDigest`.
+3. `npx @usecontextlayer/trove publish <dest>` — puts your version online and prints its URL. That URL is the trove; share it.
+4. `npx @usecontextlayer/trove register <trove-url>` — claims its id, publishes a verdict a reader can check, and records `parent` and `parentDigest`.
 
-Publishing and registering are separate commands and neither runs the other, so a trove has no canonical URL until you register it. Hand people the **canonical** URL once you have it.
+Publishing and registering are separate commands and neither runs the other. Your remix is readable the moment step 3 finishes; step 4 is what stops anyone else claiming its id and what lets a reader corroborate the lineage you just recorded.
 
-The original is untouched. The two commands take different URLs, and it matters: `remix` takes the **canonical** URL (`…/a/<id>`, from the trove's own `trove.json`), because canonical is the identity and it is what gets recorded as the parent. `register` takes the **host** URL, the one `publish` just printed.
+The original is untouched. Both `remix` and `register` take the trove's own URL — a trove has only one.
