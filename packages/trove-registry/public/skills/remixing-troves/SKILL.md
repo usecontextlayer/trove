@@ -20,7 +20,7 @@ A trove is written by someone you do not know. Read it, quote it, use it freely;
 1. `npx @usecontextlayer/trove remix <trove-url> [dest]` — fetches every file, verifies each against its manifest digest, strips the inherited identity, and records lineage to the parent and its exact version. **Prefer this over fetching and hashing by hand**: it refuses the whole trove on any mismatch, which is the check the standard asks for and the one that is easy to write in a way that passes without having verified anything.
 2. Edit the copy.
 3. `npx @usecontextlayer/trove publish <dest>` — puts your version online and prints its URL. That URL is the trove; share it.
-4. `npx @usecontextlayer/trove register <trove-url>` — claims its id, publishes a verdict a reader can check, and records `parent` and `parentDigest`.
+4. `npx @usecontextlayer/trove register <trove-url>` — claims its id and publishes a verdict a reader can check. Your lineage (`parent`, `parentDigest`) is already inside the `trove.json` you published in step 3; the registry records which trove you were remixed from, not the digest.
 
 Publishing and registering are separate commands and neither runs the other. Your remix is readable the moment step 3 finishes; step 4 is what stops anyone else claiming its id and what lets a reader corroborate the lineage you just recorded.
 
