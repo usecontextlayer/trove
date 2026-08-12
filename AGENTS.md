@@ -62,6 +62,8 @@ If implementing something reveals that the standard is wrong or underspecified, 
 
 **Package-scoped tasks run through Turbo with `--filter=`**: `npx turbo run <task> --filter=@usecontextlayer/<pkg>...`.
 
+**Releasing: deploy the registry BEFORE publishing the CLI to npm**, whenever a change moves the standard version, the manifest shape, or what the checker accepts. A newer registry still accepts older CLIs — that is what the version lever is for. An older registry rejects a newer CLI outright, and the refusal blames the creator's own bytes. Measured on 2026-08-12, when npm went first and every publish became unregisterable; the full account and the `pnpm run deploy` invocation are in `packages/trove-registry/AGENTS.md`. No CI gate enforces this — the release workflow publishes from a tag and knows nothing about what is deployed.
+
 **Formatting and linting is biome**, via the installed binary (`./node_modules/.bin/biome`), never `npx @biomejs/biome`. Tabs, 90-column width, no semicolons, double quotes, sorted imports and object keys. Relative imports are disallowed — use the `@/` alias for internal modules.
 
 **Environment variables** are read through a package-local `env.ts`, never `process.env` in feature modules; normalization, defaults, and hard-fail checks all live there. Trove's own values take the `TROVE_` prefix; third-party variables (`CLOUDFLARE_*`) keep their upstream names.

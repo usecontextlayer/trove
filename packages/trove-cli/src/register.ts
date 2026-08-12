@@ -23,16 +23,17 @@ import { describeFailures, summarizeReport } from "@/src/report"
 // commands.
 
 /**
- * Normalize to an origin and catch the one predictable confusion.
+ * Normalize to an origin, and refuse the two arguments that are not one.
  *
- * The two URL-taking commands take DIFFERENT URLs — `remix` takes the canonical
- * URL and `register` takes the host URL — so an agent will eventually hand each
- * the other's. `remix` already rejects a host URL by naming the canonical form;
- * this is the same courtesy in the other direction.
+ * A registry URL is the predictable confusion: `register` and `remix` both take
+ * a trove's own URL, and the registry publishes that URL inside a record, so an
+ * agent that read the record and took the wrong field arrives here.
  *
- * Host POLICY (https, *.workers.dev, no path) is deliberately NOT re-checked
- * here: the registry owns that rule and re-encoding it in a second place is how
- * the two drift apart. This normalizes, and names one confusion.
+ * The root requirement is enforced (§2.1) rather than normalized away, because
+ * silently discarding a path means acting on a URL the caller did not pass.
+ * Which HOSTS are acceptable — https, `*.workers.dev` — is deliberately NOT
+ * re-checked here: the registry owns that rule, and re-encoding it in a second
+ * place is how the two drift apart.
  */
 export function parseHostUrl(registryUrl: string, hostUrl: string): string {
 	let url: URL
@@ -40,12 +41,20 @@ export function parseHostUrl(registryUrl: string, hostUrl: string): string {
 		url = new URL(hostUrl)
 	} catch {
 		throw new Error(
-			`"${hostUrl}" is not a URL. trove register takes the host URL that publish printed (the host: line).`,
+			`"${hostUrl}" is not a URL. trove register takes the trove's URL — the "trove:" line publish printed.`,
 		)
 	}
 	if (url.origin === new URL(registryUrl).origin) {
 		throw new Error(
 			`${hostUrl} is a Trove registry URL, not a trove. trove register takes the trove's own URL — the "trove:" line publish printed.`,
+		)
+	}
+	// §2.1, same rule the remix boundary enforces: a trove is served at a host
+	// root. Silently returning the origin would accept a wrong argument and act
+	// on a different one.
+	if (url.pathname !== "/" || url.search !== "" || url.hash !== "") {
+		throw new Error(
+			`${hostUrl} carries a path, query, or fragment. A trove is served at a host root, so its URL is just the origin — try ${url.origin}.`,
 		)
 	}
 	return url.origin

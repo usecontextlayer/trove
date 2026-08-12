@@ -82,6 +82,20 @@ describe("parseTroveUrl", () => {
 			parseTroveUrl("https://trove.usecontextlayer.com", "trove-abc.workers.dev"),
 		).toThrow(/not a URL/)
 	})
+
+	// §2.1: troves live at a host root. A URL carrying a path parses fine and
+	// then resolves every manifest entry against the wrong base, so it has to be
+	// refused here rather than normalized away — silently dropping the path
+	// would act on a URL the caller never passed.
+	it.each([
+		["a path", "https://trove-abc.some-account.workers.dev/sub/path"],
+		["a query", "https://trove-abc.some-account.workers.dev/?a=1"],
+		["a fragment", "https://trove-abc.some-account.workers.dev/#x"],
+	])("rejects a trove URL carrying %s", (_label, given) => {
+		expect(() => parseTroveUrl("https://trove.usecontextlayer.com", given)).toThrow(
+			/host root/,
+		)
+	})
 })
 
 describe("remixTrove", () => {

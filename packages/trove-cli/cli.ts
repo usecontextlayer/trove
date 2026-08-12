@@ -59,8 +59,8 @@ program
 	)
 	.argument("<trove-url>", "the trove's URL — the `trove:` line publish printed")
 	.action(async (hostUrl: string) => {
-		// Parsed at the boundary, like remix's canonical URL — the core takes a
-		// normalized origin.
+		// Parsed at the boundary, like remix's — the core takes a normalized
+		// origin and never a raw argument.
 		await register({
 			hostUrl: parseHostUrl(env.TROVE_REGISTRY_URL, hostUrl),
 			registryUrl: env.TROVE_REGISTRY_URL,
@@ -70,7 +70,7 @@ program
 program
 	.command("remix")
 	.description(
-		"Fetch a trove by its URL, verify every file against its manifest digests, strip the inherited identity, and record lineage for the next publish. This is the verified read the standard describes — it hashes every file and refuses the whole trove on any mismatch — so reach for it rather than hand-rolling the check.",
+		"Fetch a trove by its URL, verify every file against its manifest digests, strip the inherited identity, and record lineage for the next publish. It hashes every file and refuses the whole trove on any mismatch, so reach for it rather than hand-rolling that check. It does NOT run the full conformance checks — `trove dev` does that, locally, before you publish.",
 	)
 	.argument("<trove-url>", "the trove's URL")
 	.argument("[dest]", "destination directory (default: ./trove-remix-<id>)")

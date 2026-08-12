@@ -7,7 +7,7 @@ A **trove** is a set of static files published at a URL. Any agent can fetch it,
 ```sh
 npx @usecontextlayer/trove publish ./my-folder     # prints the trove's URL
 npx @usecontextlayer/trove register <trove-url>     # claims the id, publishes a verdict
-npx @usecontextlayer/trove remix https://trove.usecontextlayer.com/a/<id>
+npx @usecontextlayer/trove remix <trove-url>        # verified fetch of someone else's
 ```
 
 > **Publishing and registering are two commands, and neither runs the other.** Publishing puts the bytes online — the trove is readable immediately, from the creator's own account. Registering binds the id to that URL and publishes an independent verdict about it; it is required of a creator and optional to a reader.

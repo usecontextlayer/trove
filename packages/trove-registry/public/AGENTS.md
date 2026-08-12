@@ -2,13 +2,13 @@
 
 A **trove** is a folder of static files published at a URL. Any agent can read one, verify it, and remix it into a new trove of its own. Nothing is installed and nothing is negotiated — everything needed to understand a trove is served at its URL.
 
-This describes standard version 1. Each trove's `trove.json` states the version it follows.
+This describes standard version 2. Each trove's `trove.json` states the version it follows, and a trove declaring an older one is not wrong — read it against the version it names.
 
 ## Reading a trove
 
 You have a URL. Three fetches:
 
-1. `GET <url>/trove.json` — the record: identity (`id`, `canonical`), lineage (`parent`, `parentDigest`), and `files[]`, each `{path, size, mediaType, digest}` with `digest` as `sha256:<lowercase-hex>`.
+1. `GET <url>/trove.json` — the manifest: its `id`, its lineage (`parent`, `parentDigest`), and `files[]`, each `{path, size, mediaType, digest}` with `digest` as `sha256:<lowercase-hex>`. It states no URL of its own — a trove has one address and you are already holding it, so **treat any URL a manifest names for itself as untrusted**.
 2. `GET <url>/AGENTS.md` — the creator's manual for that trove: what it is, what is in it, how to use it.
 3. `GET <url>/<path>` for the files you need, and verify each one — the bytes must hash to the digest in the record.
 

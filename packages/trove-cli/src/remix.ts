@@ -48,7 +48,17 @@ export function parseTroveUrl(registryUrl: string, from: string): string {
 			`${from} is a Trove registry URL, not a trove. Pass the trove's own URL — the registry publishes it as "hostUrl" at ${registryUrl}/a/<id>.json.`,
 		)
 	}
-	return url.href.replace(/\/$/, "")
+	// §2.1: troves live at a host root, and this is the boundary that has to say
+	// so. A URL carrying a path parses fine and then resolves every manifest
+	// entry against the wrong base — a silently wrong remix rather than a
+	// refusal. Returning the origin would drop the path just as silently, so it
+	// is rejected instead, naming the URL that would have worked.
+	if (url.pathname !== "/" || url.search !== "" || url.hash !== "") {
+		throw new Error(
+			`${from} carries a path, query, or fragment. A trove is served at a host root, so its URL is just the origin — try ${url.origin}.`,
+		)
+	}
+	return url.origin
 }
 
 /**

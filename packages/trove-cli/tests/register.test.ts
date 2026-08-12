@@ -124,6 +124,14 @@ describe("parseHostUrl", () => {
 	it("rejects something that is not a URL", () => {
 		expect(() => parseHostUrl(registryUrl, "trove-abc.workers.dev")).toThrow(/not a URL/)
 	})
+
+	// Same boundary rule as remix's (§2.1), enforced rather than normalized:
+	// returning the origin would accept one argument and act on another.
+	it("rejects a trove URL carrying a path", () => {
+		expect(() =>
+			parseHostUrl(registryUrl, "https://trove-abc.some-account.workers.dev/foo"),
+		).toThrow(/host root/)
+	})
 })
 
 describe("register", () => {
