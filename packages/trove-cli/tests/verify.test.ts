@@ -6,7 +6,9 @@ import { mintId } from "@usecontextlayer/trove-standard"
 import mime from "mime"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { assembleTrove } from "@/src/assemble"
-import { verify } from "@/src/verify"
+import { parseVerifyTarget, verify } from "@/src/verify"
+
+const REGISTRY = "https://trove.usecontextlayer.com"
 
 // verify's far side is a real trove served over real HTTP by a local server, and
 // the trove is built by assembleTrove — digests, mandated block and all — rather
@@ -62,10 +64,43 @@ afterEach(() => {
 	process.exitCode = 0
 })
 
+describe("parseVerifyTarget", () => {
+	// One command over two input types, so the discrimination has to be
+	// unambiguous rather than clever. The scheme is what decides it.
+	it("reads an http(s) URL as a live trove", () => {
+		expect(
+			parseVerifyTarget(REGISTRY, "https://trove-abc.some-account.workers.dev"),
+		).toEqual({ kind: "url", troveUrl: "https://trove-abc.some-account.workers.dev" })
+	})
+
+	it("reads an existing directory as a folder", () => {
+		const dir = mkdtempSync(path.join(os.tmpdir(), "trove-verify-target-"))
+		expect(parseVerifyTarget(REGISTRY, dir)).toEqual({ folder: dir, kind: "folder" })
+	})
+
+	it("still refuses a registry URL, which is neither", () => {
+		expect(() => parseVerifyTarget(REGISTRY, `${REGISTRY}/a/${troveId}`)).toThrow(
+			/hostUrl/,
+		)
+	})
+
+	// The likeliest real mistake: a URL with the scheme left off. It is not a URL
+	// and not a directory either, so an error naming only one of those sends the
+	// reader looking in the wrong place.
+	it("names BOTH readings when the argument is neither", () => {
+		expect(() => parseVerifyTarget(REGISTRY, "trove-abc.workers.dev")).toThrow(
+			/neither a folder that exists nor an http\(s\) URL/,
+		)
+		expect(() => parseVerifyTarget(REGISTRY, "trove-abc.workers.dev")).toThrow(
+			/https:\/\/trove-abc\.workers\.dev/,
+		)
+	})
+})
+
 describe("verify", () => {
 	it("passes a conformant trove, printing every verdict and exiting zero", async () => {
 		const log = vi.spyOn(console, "log").mockImplementation(() => {})
-		await verify({ troveUrl })
+		await verify({ registryUrl: REGISTRY, target: troveUrl })
 
 		const printed = log.mock.calls.map((call) => String(call[0])).join("\n")
 		// All seven named, so the report says what it checked rather than only
@@ -90,7 +125,7 @@ describe("verify", () => {
 		// the position that is about to trust the bytes, so here they must run —
 		// this is the difference that makes the command worth having.
 		const log = vi.spyOn(console, "log").mockImplementation(() => {})
-		await verify({ troveUrl })
+		await verify({ registryUrl: REGISTRY, target: troveUrl })
 		const printed = log.mock.calls.map((call) => String(call[0])).join("\n")
 		expect(printed).not.toContain("----  files")
 		expect(printed).not.toContain("this position does not verify manifest files")
@@ -101,7 +136,7 @@ describe("verify", () => {
 		writeFileSync(path.join(assembledDir, "data.csv"), "tampered\n")
 		try {
 			const log = vi.spyOn(console, "log").mockImplementation(() => {})
-			await verify({ troveUrl })
+			await verify({ registryUrl: REGISTRY, target: troveUrl })
 			const printed = log.mock.calls.map((call) => String(call[0])).join("\n")
 			expect(printed).toContain("FAIL")
 			expect(printed).toContain("files")
@@ -117,7 +152,7 @@ describe("verify", () => {
 		// reader hand-rolls — passes this trove; the standard does not.
 		noindex = false
 		const log = vi.spyOn(console, "log").mockImplementation(() => {})
-		await verify({ troveUrl })
+		await verify({ registryUrl: REGISTRY, target: troveUrl })
 		const printed = log.mock.calls.map((call) => String(call[0])).join("\n")
 		expect(printed).toContain("noindex")
 		expect(printed).toContain("does NOT conform")

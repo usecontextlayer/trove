@@ -9,6 +9,7 @@ import { publish } from "@/src/publish"
 import { parseHostUrl, register } from "@/src/register"
 import { parseTroveUrl, remixTrove } from "@/src/remix"
 import { describeNonConformance } from "@/src/report"
+import { screenshot } from "@/src/screenshot"
 import { verify } from "@/src/verify"
 
 const program = new Command()
@@ -26,6 +27,25 @@ const program = new Command()
 // kind of CLI output an agent gives up on.
 const portSchema = z.coerce.number().int().min(1024).max(65535)
 
+/** `390x844` — the one shape worth accepting, so a typo is caught here rather than by a browser. */
+const viewportSchema = z
+	.string()
+	.regex(/^\d{2,5}x\d{2,5}$/)
+	.transform((value) => {
+		const [width, height] = value.split("x").map(Number)
+		return { height: height ?? 0, width: width ?? 0 }
+	})
+	.refine((size) => size.width >= 10 && size.height >= 10)
+
+const themeSchema = z.enum(["light", "dark", "both"])
+
+/** Every folder-taking command asks the same question, so it gives the same answer. */
+function requireDirectory(folder: string): void {
+	if (!existsSync(folder) || !statSync(folder).isDirectory()) {
+		throw new Error(`${folder} is not a directory.`)
+	}
+}
+
 // Registered FIRST so it is the first command in `--help`. Three separate
 // reading agents, handed a trove URL, hand-rolled verification rather than
 // finding a tool for it — and the population that needs this command is exactly
@@ -33,24 +53,35 @@ const portSchema = z.coerce.number().int().min(1024).max(65535)
 program
 	.command("verify")
 	.description(
-		"Check a live trove against the standard and print all seven verdicts. Read-only: it fetches, it never writes, deploys, or registers anything. Run this on a trove someone sent you BEFORE you trust or build on it — it hashes every file against the manifest AND runs the six checks you cannot hand-roll, including anti-cloaking, which is the one that finds text addressed to your agent that a human reading the page cannot see. Prefer it over fetching and hashing by hand: verification written by hand is easy to write in a way that passes without having verified anything. Exits non-zero if the trove does not conform, so it works as a gate in a script. For a folder you have not published yet, use `trove dev` instead.",
+		"Check a trove against the standard and print all seven verdicts. Takes either a live trove's URL or a local folder — one question, asked of the same thing at two moments in its life. Read-only either way: it never deploys, registers, or writes into your folder, and the folder form starts no 60-minute clock. Run it on a trove someone sent you BEFORE you trust or build on it: it hashes every file against the manifest AND runs the six checks you cannot hand-roll, including anti-cloaking, which finds text addressed to your agent that a human reading the page cannot see. Prefer it over fetching and hashing by hand — verification written by hand is easy to write in a way that passes without having verified anything. A folder is assembled and served exactly as `publish` would, so the answer is about what WOULD ship. Exits non-zero if the trove does not conform, so it works as a gate in a script.",
 	)
-	.argument("<trove-url>", "the trove's URL")
-	.action(async (from: string) => {
-		await verify({ troveUrl: parseTroveUrl(env.TROVE_REGISTRY_URL, from) })
+	.argument(
+		"<folder-or-url>",
+		"a live trove's URL, or a folder you have not published yet",
+	)
+	.action(async (target: string) => {
+		await verify({ registryUrl: env.TROVE_REGISTRY_URL, target })
 	})
 
-program
+// `dev` is where the LOCAL, not-yet-published folder is worked on, and it has
+// two genuinely different actions — keep serving it, or photograph it — so it
+// takes subcommands. `verify` has one action over two input types, so it takes
+// an argument instead. Subcommands for different actions; an argument for
+// different inputs to the same action.
+const devCommand = program
 	.command("dev")
 	.description(
-		"Assemble a folder as a trove and serve it locally with the same asset layer the host runs, then check it against the standard over HTTP and print all seven verdicts. Nothing is deployed, no Cloudflare account is used, and no 60-minute claim clock starts — this is how you look at the page and prove it conforms BEFORE publishing. Serves a snapshot of the folder: re-run to pick up edits.",
+		"Work on a folder that is not published yet. `trove dev <folder>` serves it; `trove dev screenshot <folder>` photographs it. Nothing here deploys, touches a Cloudflare account, or starts a 60-minute claim clock.",
 	)
-	.argument("<folder>", "the folder to serve; must contain an AGENTS.md")
+
+devCommand
+	.command("serve <folder>", { isDefault: true })
+	.description(
+		"Assemble a folder as a trove and serve it locally with the same asset layer the host runs, then check it against the standard over HTTP and print all seven verdicts. Keeps serving until Ctrl-C, so you can open the page. Serves a snapshot of the folder: re-run to pick up edits. To check a folder and exit instead, use `trove verify <folder>`.",
+	)
 	.option("-p, --port <port>", "port to serve on", "8788")
 	.action(async (folder: string, options: { port: string }) => {
-		if (!existsSync(folder) || !statSync(folder).isDirectory()) {
-			throw new Error(`${folder} is not a directory.`)
-		}
+		requireDirectory(folder)
 		const port = portSchema.safeParse(options.port)
 		if (!port.success) {
 			throw new Error(
@@ -59,6 +90,41 @@ program
 		}
 		await dev({ folder, port: port.data })
 	})
+
+devCommand
+	.command("screenshot <folder>")
+	.description(
+		"Serve the folder as a trove, photograph the page, and print where the images are. Also measures whether the body scrolls sideways at the viewport it shot — a screenshot alone cannot tell you that, and a narrow headless WINDOW is not a mobile LAYOUT VIEWPORT, which is how one page acquired a defensive CSS rule for a bug it never had. Exits non-zero when the page overflows. Needs Playwright installed in the directory you run this from; every other command does not.",
+	)
+	.option("--viewport <WxH>", "viewport to render at", "1280x800")
+	.option("--theme <theme>", "light, dark, or both", "light")
+	.option("--no-full-page", "capture only the viewport instead of the whole page")
+	.option("--out <dir>", "where to write the images (default: a fresh temp directory)")
+	.action(
+		async (
+			folder: string,
+			options: { fullPage: boolean; out?: string; theme: string; viewport: string },
+		) => {
+			requireDirectory(folder)
+			const viewport = viewportSchema.safeParse(options.viewport)
+			if (!viewport.success) {
+				throw new Error(
+					`--viewport must be WIDTHxHEIGHT, like 390x844, not "${options.viewport}".`,
+				)
+			}
+			const theme = themeSchema.safeParse(options.theme)
+			if (!theme.success) {
+				throw new Error(`--theme must be light, dark, or both, not "${options.theme}".`)
+			}
+			await screenshot({
+				folder,
+				fullPage: options.fullPage,
+				...(options.out === undefined ? {} : { outDir: options.out }),
+				theme: theme.data,
+				viewport: viewport.data,
+			})
+		},
+	)
 
 program
 	.command("publish")

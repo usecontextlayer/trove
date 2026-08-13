@@ -1,31 +1,98 @@
+import { existsSync, statSync } from "node:fs"
 import { checkTrove, httpReader } from "@usecontextlayer/trove-standard"
+import { parseTroveUrl } from "@/src/remix"
 import { describeChecks } from "@/src/report"
+import { freePort, withServedTrove } from "@/src/served-trove"
 
-// `trove verify <trove-url>` — the §6.1 checker in the READER's position, over
-// HTTP, against a trove that is already live. Same checker, same renderer and
-// the same seven verdicts as `trove dev`; the only difference is that dev points
-// at a folder it served itself and this points at somebody else's URL.
+// `trove verify` — the §6.1 checker, asking one question: does this conform?
 //
-// It exists because the standard tells a reader to verify a trove before
-// trusting it and, until now, gave them nothing to do it with. What three
-// separate reading agents did instead was hand-roll it — fetch each file, hash
-// it, and compare by eye — which is the failure the standard names in the same
-// breath as the instruction: hand-written verification is easy to write in a way
-// that PASSES WITHOUT HAVING VERIFIED ANYTHING. One measured agent's check ran a
-// hashing binary that was not installed, compared two empty strings, and printed
-// OK six times.
+// It takes a live trove's URL or a local folder, because that is one question
+// about one thing at two moments in its life, not two questions. The checker
+// itself already works this way: §6 defines ONE implementation running in
+// several positions, differing only in the reader adapter underneath it. The
+// positions are an implementation fact; "is this conformant" is the concept, and
+// the concept gets the name.
 //
-// So the digest half is the part people think of and the smaller part of what
-// this buys. checkTrove runs it as check 4, and adds the six a reader cannot
-// hand-roll at all — above all anti-cloaking, which is the reader's own threat
-// model: text addressed to their agent that they cannot see on the page.
+// Splitting it into `verify url` and `verify folder` was considered and
+// rejected. The measured failure in this product is DISCOVERY — three separate
+// reading agents, handed a trove URL, never found that any verification tool
+// existed and hand-rolled the check instead. Under subcommands the obvious
+// `trove verify <thing>` answers "unknown command"; here it works.
+//
+// It only ever reads. Nothing is deployed, no account is touched, no id is
+// registered, and the folder form starts no 60-minute clock.
 
-export async function verify(options: { troveUrl: string }): Promise<void> {
-	const { troveUrl } = options
+/**
+ * Which of the two things the argument is.
+ *
+ * A discriminated union rather than two optional fields, so the caller cannot
+ * hold "both" or "neither" — the states that do not exist should not be
+ * representable.
+ */
+type VerifyTarget = { folder: string; kind: "folder" } | { kind: "url"; troveUrl: string }
 
-	const { report } = await checkTrove({ read: httpReader(troveUrl) })
+/**
+ * Read the argument as a URL if it is one, and as a folder otherwise.
+ *
+ * The test is the scheme, which is what makes this unambiguous rather than a
+ * guess: a trove URL is always `http(s)://…`, and a path never parses as a URL
+ * with an http scheme. A folder literally named `https://…` is not a case worth
+ * designing for.
+ *
+ * The failure message names BOTH readings on purpose. The likeliest way to
+ * arrive here is a URL missing its scheme (`trove-abc.workers.dev`), which is
+ * not a URL and is not a directory either — and an error that mentions only one
+ * of those sends the reader looking in the wrong place.
+ */
+export function parseVerifyTarget(registryUrl: string, target: string): VerifyTarget {
+	let url: URL | null = null
+	try {
+		url = new URL(target)
+	} catch {
+		url = null
+	}
+	if (url !== null && (url.protocol === "http:" || url.protocol === "https:")) {
+		return { kind: "url", troveUrl: parseTroveUrl(registryUrl, target) }
+	}
+	if (existsSync(target) && statSync(target).isDirectory()) {
+		return { folder: target, kind: "folder" }
+	}
+	throw new Error(
+		`"${target}" is neither a folder that exists nor an http(s) URL. Pass a trove's URL to check one that is live, or a folder to check one before you publish it. (A URL needs its scheme: https://${target})`,
+	)
+}
 
-	console.log(troveUrl)
+export async function verify(options: {
+	registryUrl: string
+	target: string
+}): Promise<void> {
+	const { registryUrl, target } = options
+	const parsed = parseVerifyTarget(registryUrl, target)
+
+	// The folder form assembles and serves the trove exactly as publish would
+	// and checks it over real HTTP — so the answer is about what WOULD ship, not
+	// about the loose files on disk, which carry no mandated block and no
+	// manifest until assembly generates them.
+	const { report, url } =
+		parsed.kind === "url"
+			? {
+					report: (await checkTrove({ read: httpReader(parsed.troveUrl) })).report,
+					url: parsed.troveUrl,
+				}
+			: await withServedTrove(
+					{ folder: parsed.folder, port: await freePort() },
+					async (served) => ({
+						report: (
+							await checkTrove({
+								expectedId: served.id,
+								read: httpReader(served.url),
+							})
+						).report,
+						url: `${parsed.folder} (served locally)`,
+					}),
+				)
+
+	console.log(url)
 	console.log(describeChecks(report))
 	console.log(
 		report.ok
