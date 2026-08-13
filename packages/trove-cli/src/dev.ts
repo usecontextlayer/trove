@@ -28,9 +28,12 @@ export async function dev(options: { folder: string; port: number }): Promise<vo
 		})
 		console.log(`\nserving ${folder} at ${served.url}`)
 		console.log(describeChecks(report))
+		// "Ready to publish" was a readiness claim the checks cannot support: a
+		// folder holding raw files and a placeholder manual passes all seven.
+		// What the checks establish is that the format is right.
 		console.log(
 			report.ok
-				? "all checks pass — this folder is ready to publish"
+				? "all checks pass — the format is right. That is not the same as the page or the manual being worth publishing; look at both."
 				: "this folder does NOT conform; publishing it would fail the same way",
 		)
 		// Said plainly because the alternative is a creator editing their source

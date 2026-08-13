@@ -180,6 +180,90 @@ describe("verify", () => {
 		// every slow boot reports as an unexplained "Test timed out".
 	}, 120_000)
 
+	it("waits out a trove that is still propagating instead of failing it", async () => {
+		// A fresh deployment flaps rather than coming up: measured, /trove.json
+		// answered 200,404,200,200,404,200 at three-second intervals, and a
+		// single-read check reported a healthy trove as broken. publish and
+		// register both poll through this; verify now polls on the same terms.
+		let attempts = 0
+		const flapping = http.createServer((request, response) => {
+			const trovePath = request.url || "/"
+			if (trovePath === "/") {
+				attempts += 1
+				if (attempts < 3) {
+					response.writeHead(503).end()
+					return
+				}
+			}
+			const file = trovePath === "/" ? "index.html" : trovePath.slice(1)
+			try {
+				const body = readFileSync(path.join(assembledDir, file))
+				response
+					.writeHead(200, {
+						"content-type": mime.getType(file) ?? "application/octet-stream",
+						"x-robots-tag": "noindex",
+					})
+					.end(body)
+			} catch {
+				response.writeHead(404).end()
+			}
+		})
+		await new Promise<void>((resolve) => flapping.listen(0, "127.0.0.1", resolve))
+		const address = flapping.address()
+		if (address === null || typeof address === "string") {
+			throw new Error("server did not bind a port")
+		}
+
+		const result = await verify({
+			registryUrl: REGISTRY,
+			target: `http://127.0.0.1:${address.port}`,
+		})
+
+		expect(attempts).toBeGreaterThanOrEqual(3)
+		expect(result.report.ok).toBe(true)
+		flapping.close()
+	}, 120_000)
+
+	it("says nothing is THERE, rather than calling an absent trove non-conformant", async () => {
+		// A URL with nothing behind it is not a trove that fails seven checks.
+		// The clock is faked because reaching this message costs the full poll.
+		const realFetch = globalThis.fetch
+		globalThis.fetch = (async () => new Response("", { status: 404 })) as typeof fetch
+		vi.useFakeTimers()
+		try {
+			const attempt = verify({
+				registryUrl: REGISTRY,
+				target: "https://trove-gone.example.workers.dev",
+			}).then(
+				() => new Error("verify resolved against a URL serving nothing"),
+				(error: unknown) => error,
+			)
+			await vi.advanceTimersByTimeAsync(60_000)
+			const thrown = String(await attempt)
+
+			expect(thrown).toMatch(/nothing is serving a trove/)
+			expect(thrown).not.toMatch(/does NOT conform/)
+			// The likeliest real cause, named: an unclaimed preview that expired.
+			expect(thrown).toMatch(/60 minutes/)
+		} finally {
+			vi.useRealTimers()
+			globalThis.fetch = realFetch
+		}
+	})
+
+	it("scopes a PASSING verdict to the format, so it cannot be read as a quality one", () => {
+		// A trove of raw files behind a 14-byte placeholder manual passes all
+		// seven checks — correctly, since check 3 asks only that AGENTS.md be
+		// non-empty. The reader deciding whether to stop looking must not take
+		// the tick for more than it is.
+		const rendered = describeVerdict({
+			report: { checks: [{ name: "agents-md", status: "ok" }], ok: true },
+			subject: "https://trove-abc.example.workers.dev",
+		})
+		expect(rendered).toContain("conforms")
+		expect(rendered).toMatch(/format verdict, not a quality one/)
+	})
+
 	it("renders the verdict for a reader", () => {
 		const rendered = describeVerdict({
 			report: { checks: [{ name: "noindex", status: "failed" }], ok: false },

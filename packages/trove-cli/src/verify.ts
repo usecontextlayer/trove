@@ -6,6 +6,7 @@ import {
 } from "@usecontextlayer/trove-standard"
 import { describeChecks } from "@/src/report"
 import { freePort, withServedTrove } from "@/src/served-trove"
+import { waitUntilServing } from "@/src/serving"
 import { parseTroveUrl } from "@/src/trove-url"
 
 // `trove verify` — the §6.1 checker, asking one question: does this conform?
@@ -78,6 +79,23 @@ export interface VerifyResult {
 
 /** A live trove, checked over HTTP exactly as a reader would. */
 async function verifyLive(troveUrl: string): Promise<VerifyResult> {
+	// Wait out propagation first, on the same terms as `publish` and `register`
+	// — same mechanism, same budget. A fresh deployment does not simply come up,
+	// it FLAPS, so a checker that reads it once reports a healthy trove as
+	// broken: measured twice, and the second time the creator only avoided
+	// republishing (which would have burned the id) by disbelieving the tool and
+	// probing by hand. One rule across the command family beats three commands
+	// giving three answers about the same condition.
+	try {
+		await waitUntilServing(troveUrl)
+	} catch (error) {
+		// A URL with nothing behind it is not a non-conformant trove — it is not
+		// a trove. Reporting seven failing checks would answer a question nobody
+		// asked and imply a trove exists that fails them.
+		throw new Error(
+			`nothing is serving a trove at ${troveUrl}, so there is nothing to check. If it was published moments ago, propagation may still be settling — wait a minute and run this again. If it was published over an hour ago and never claimed, an anonymous preview is deleted after 60 minutes and this URL is gone for good.\n${String(error)}`,
+		)
+	}
 	const { report } = await checkTrove({ read: httpReader(troveUrl) })
 	return { report, subject: troveUrl }
 }
@@ -116,13 +134,24 @@ export async function verify(options: {
 	return parsed.kind === "url" ? verifyLive(parsed.troveUrl) : verifyFolder(parsed.folder)
 }
 
-/** The verdict as a reader sees it. Separate from the checking so the checking can be asserted on. */
+/**
+ * The verdict as a reader sees it. Separate from the checking so the checking
+ * can be asserted on.
+ *
+ * The passing line states its own scope, because it is read at the moment
+ * someone is deciding whether to stop looking. Measured: a trove holding two
+ * raw files and a 14-byte placeholder manual passes all seven checks and was
+ * told it "conforms" — correctly, since check 3 asks only that AGENTS.md be
+ * non-empty. The checks were right and the sentence over-claimed, which is the
+ * same rule the repo already holds for the word "certified": no output may
+ * imply more than what ran.
+ */
 export function describeVerdict(result: VerifyResult): string {
 	return [
 		result.subject,
 		describeChecks(result.report),
 		result.report.ok
-			? "conforms to the trove standard — every check passed"
+			? "conforms to the trove standard — all seven contract checks pass. That is a format verdict, not a quality one: a trove whose AGENTS.md says nothing useful passes it too."
 			: "does NOT conform — the failing checks are above",
 	].join("\n")
 }

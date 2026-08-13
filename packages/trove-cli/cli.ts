@@ -4,7 +4,7 @@ import { Command } from "commander"
 import { z } from "zod"
 import { version } from "@/package.json"
 import { dev } from "@/src/dev"
-import { env } from "@/src/env"
+import { env, PLATFORM_MANUAL_URL } from "@/src/env"
 import { publish } from "@/src/publish"
 import { register } from "@/src/register"
 import { remixTrove } from "@/src/remix"
@@ -16,7 +16,7 @@ import { describeVerdict, verify } from "@/src/verify"
 const program = new Command()
 	.name("trove")
 	.description(
-		"Publish and remix troves — folders of static files served at a URL any agent can fetch, verify, and remix. A trove is served from your own Cloudflare account and has exactly one URL: its own. Publishing is two steps that run separately: `publish` puts the bytes online and they are readable immediately, then `register` claims the trove's id and publishes an independent verdict about it. Neither command runs the other, and reading a trove never involves Trove at all.",
+		`Publish and remix troves — folders of static files served at a URL any agent can fetch, verify, and remix. A trove is served from your own Cloudflare account and has exactly one URL: its own. Publishing is two steps that run separately: \`publish\` puts the bytes online and they are readable immediately, then \`register\` claims the trove's id and publishes an independent verdict about it. Neither command runs the other, and reading a trove never involves Trove at all. The standard these commands implement, and the skills that teach writing and remixing, are served at ${PLATFORM_MANUAL_URL} — this help does not repeat them.`,
 	)
 	// Imported from the manifest, never retyped — one place a version number
 	// exists. Lowercase -v as well as --version, since commander defaults to -V
@@ -145,7 +145,7 @@ program
 program
 	.command("register")
 	.description(
-		"Register a trove that is already online. Reads the trove's id from the trove.json it serves — which is also what proves you control the trove you are registering — then binds that id to that URL and publishes the contract-check verdict at /a/<id>.json. This does not affect whether the trove can be read; it closes three things a trove cannot establish about itself: that nobody else can claim its id, that its conformance was observed by someone other than its author, and that a remix naming it as parent can be corroborated. An id binds to one URL forever, so re-running this against the same one is how a redeployed trove is re-checked, while a different one is refused. A trove that fails its checks is still registered: the failing report is stored and published, and this command prints it and exits non-zero.",
+		"Register a trove that is already online. Reads the trove's id from the trove.json it serves — which is also what proves you control the trove you are registering — then binds that id to that URL and publishes the contract-check verdict at /a/<id>.json. This does not affect whether the trove can be read; it closes three things a trove cannot establish about itself: that nobody else can claim its id, that its conformance was observed by someone other than its author, and that a remix naming it as parent can be corroborated. An id binds to one URL forever, so re-running this against the same one is how a redeployed trove is re-checked, while a different one is refused. A trove that fails its checks is still registered: the failing report is stored and published, and this command prints it and exits non-zero. Registering does NOT extend an anonymous preview's 60-minute clock and does not keep the trove alive — only opening the claim URL does that.",
 	)
 	.argument("<trove-url>", "the trove's URL — the `trove:` line publish printed")
 	.action(async (hostUrl: string) => {

@@ -8,3 +8,12 @@ import { TROVE_ORIGIN } from "@usecontextlayer/trove-standard"
 export const env = {
 	TROVE_REGISTRY_URL: process.env.TROVE_REGISTRY_URL ?? TROVE_ORIGIN,
 } as const
+
+// The two documents the CLI points a stranger at. Derived from the registry
+// origin rather than written out, so the one-constant rule still holds and a
+// caller pointed at another registry is told about THAT registry's docs.
+export const PLATFORM_MANUAL_URL = new URL("/AGENTS.md", env.TROVE_REGISTRY_URL).href
+export const WRITING_TROVES_URL = new URL(
+	"/skills/writing-troves/SKILL.md",
+	env.TROVE_REGISTRY_URL,
+).href

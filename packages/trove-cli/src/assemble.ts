@@ -20,6 +20,7 @@ import {
 	type TroveManifest,
 } from "@usecontextlayer/trove-standard"
 import mime from "mime"
+import { WRITING_TROVES_URL } from "@/src/env"
 
 // Assembly (§8 step 2): the creator's files, the mandated block injected into
 // index.html (generated when the creator did not author one), the generated
@@ -206,8 +207,13 @@ export function assembleTrove(options: AssembleOptions): TroveManifest {
 	const { destDir, id, parent, parentDigest, sourceDir } = options
 
 	if (!existsSync(path.join(sourceDir, "AGENTS.md"))) {
+		// The URL is here because this is the moment a creator needs it and there
+		// was no route to it: measured, an agent hitting this message spent six
+		// tool calls and 84 seconds recovering the address by publishing a
+		// throwaway trove, serving it, and reading it out of the injected block.
+		// A section number cites a document; it does not tell you where it is.
 		throw new Error(
-			`${sourceDir} has no AGENTS.md — every trove requires one (§2.2): the creator's manual for the agent that arrives later.`,
+			`${sourceDir} has no AGENTS.md — every trove requires one (§2.2): the creator's manual for the agent that arrives later. What belongs in it: ${WRITING_TROVES_URL}`,
 		)
 	}
 	if (existsSync(path.join(sourceDir, "_headers"))) {

@@ -155,6 +155,16 @@ export async function publish(options: { folder: string }): Promise<void> {
 		if (deployed.claim !== null) {
 			console.log(`claim: ${deployed.claim.url}`)
 			console.log(claimDeadlineLine(deployed.claim.deadlineMinutes, new Date()))
+			// The consequence for the RECIPIENT, said here because this is the
+			// only place it can be said. The trove's own AGENTS.md cannot carry
+			// it: the deadline is not known until after the bytes are written,
+			// and a "this is temporary" line baked into the bytes becomes false
+			// the moment someone claims it, with nothing able to update it.
+			// Deliberately silent on whether the URL itself survives a claim —
+			// that has never been measured, and this line does not need it to be.
+			console.log(
+				"  anyone you send this URL to loses the trove at that time too. If you are sharing this rather than checking your own work, open the claim URL first.",
+			)
 		}
 		// The trove is readable already; what is missing is the id binding and an
 		// independent verdict. Naming the exact command AND what it buys is what
