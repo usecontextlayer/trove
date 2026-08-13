@@ -55,10 +55,9 @@ export async function remixTrove(options: {
 }): Promise<{ destDir: string; fileCount: number; report: ContractCheckReport }> {
 	const { troveUrl } = options
 
-	// §6's THIRD POSITION, which until now did not exist: the same checker the
-	// creator runs before publishing and the registry runs at registration, run
-	// here by the agent about to trust the bytes. "One checker, three positions"
-	// was a claim the docs made and this function did not keep.
+	// §6's THIRD POSITION: the same checker the creator runs before publishing
+	// and the registry runs at registration, run here by the agent about to
+	// trust the bytes.
 	//
 	// verifyFiles is OFF because this function verifies every file itself, below,
 	// as it writes it — running check 4 here as well would fetch the whole trove

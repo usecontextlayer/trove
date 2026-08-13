@@ -7,19 +7,16 @@ import { freePort, withServedTrove } from "@/src/served-trove"
 // `trove dev screenshot` — stand the folder up as a real trove, photograph the
 // page, and print where the images are.
 //
-// It exists because the product asks for something it gave nobody a way to do.
-// `writing-troves` spends its longest section on the page — tokens, both
-// themes, typography, and "wide content gets its own overflow-x container so the
-// body never scrolls sideways" — and until now a creator's only route to seeing
-// the result was to publish it and open a browser.
+// It exists because the product asks for something it gave nobody a way to do:
+// `writing-troves` asks a creator for design tokens, both themes, typography,
+// and "wide content gets its own overflow-x container so the body never scrolls
+// sideways" — and none of that is checkable without seeing the page.
 //
-// The measurement matters as much as the image, and this is the one place the
-// distinction has already cost real work. One agent INVENTED a mobile-layout bug
-// from a narrow headless window and shipped a defensive CSS rule for it;
-// another hit the real thing and caught it only by comparing scrollWidth to
-// clientWidth at a true 390px viewport. Headless Chrome at a narrow WINDOW is
-// not a mobile LAYOUT VIEWPORT, so a screenshot alone reproduces the first
-// agent's trap. Both numbers are printed with every capture.
+// The measurement matters as much as the image. Headless Chrome at a narrow
+// WINDOW is not a mobile LAYOUT VIEWPORT, so an image alone can show an
+// overflow the page does not have, and can hide a real one by having been
+// clipped to the window. Both numbers are printed with every capture, so the
+// verdict never rests on reading a picture.
 //
 // Conformance deliberately says nothing about any of this. A trove that scrolls
 // sideways on a phone passes all seven checks, correctly — the standard is an
@@ -160,9 +157,8 @@ export async function screenshot(options: ScreenshotOptions): Promise<void> {
  *
  * Kept apart from the capture because it is the half that can be wrong in a way
  * nobody notices: an image looks the same whether or not the tool understood
- * what it was looking at, and the whole reason this command reports a number is
- * that one agent read a screenshot and diagnosed a bug the page did not have.
- * The arithmetic is worth pinning; the browser is not worth mocking.
+ * what it was looking at. The arithmetic is worth pinning; the browser is not
+ * worth mocking.
  */
 export function describeOverflow(shots: readonly Shot[]): {
 	overflowing: boolean

@@ -5,7 +5,7 @@ import {
 } from "@usecontextlayer/trove-standard"
 import { registerTrove } from "@/src/registry"
 import { describeFailures, summarizeReport } from "@/src/report"
-import { fetchWhileSettling, type SettlingOptions } from "@/src/wrangler"
+import { fetchWhileSettling } from "@/src/serving"
 
 // Registering (§8) — a separate command from publishing, and neither does the
 // other. Publishing gets the bytes live and the trove is readable from that
@@ -26,8 +26,6 @@ import { fetchWhileSettling, type SettlingOptions } from "@/src/wrangler"
 export async function register(options: {
 	hostUrl: string
 	registryUrl: string
-	/** Propagation polling. Defaults match publish's; a caller on a slower host can widen them. */
-	settling?: SettlingOptions
 }): Promise<void> {
 	const { hostUrl, registryUrl } = options
 
@@ -51,7 +49,7 @@ export async function register(options: {
 	// hand and disbelieving the tool.
 	let response: Response
 	try {
-		response = await fetchWhileSettling(manifestUrl, options.settling)
+		response = await fetchWhileSettling(manifestUrl)
 	} catch (error) {
 		throw new Error(
 			`nothing is serving a trove at ${hostUrl}. If you just published it, propagation may still be settling — wait a minute and run this again; do NOT republish, which would mint a new id and orphan the trove that is already live. If you have not published it yet, publish it first.\n${String(error)}`,

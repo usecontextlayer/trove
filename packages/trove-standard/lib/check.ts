@@ -332,7 +332,12 @@ export async function checkTrove(options: {
 			} else if (!matchesMandatedScript(script.source.markup)) {
 				blockDetail = "the mandated script tag is missing or modified"
 			} else if (standardDetail !== undefined) {
-				blockDetail = `not checked: ${standardDetail}`
+				// NOT the words "not checked": that phrase names the OTHER
+				// status, which means "this position does not run this check"
+				// and both renders and counts differently. This check ran and
+				// the trove failed it; what did not happen is the text
+				// comparison, which would have reported a wrong cause.
+				blockDetail = `the block text was not compared — ${standardDetail}`
 			} else if (!matchesMandatedDiv(mandatedDiv.source.markup, blockId)) {
 				blockDetail =
 					"the mandated div's text does not match the template (substitute, normalize, compare)"

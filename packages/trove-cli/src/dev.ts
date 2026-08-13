@@ -6,12 +6,11 @@ import { withServedTrove } from "@/src/served-trove"
 // or an agent can open the page and look at it. Nothing is deployed, no account
 // is touched, and no 60-minute clock starts.
 //
-// The CHECKING half of what this used to do now also lives in
-// `trove verify <folder>`, which runs the same seven checks against the same
+// `trove verify <folder>` runs the same seven checks against the same
 // locally-served trove and exits. This command is the one you want when the
 // question is "let me look at it"; verify is the one you want when the question
-// is "does it conform". Both are printed here because a creator standing the
-// page up wants the verdicts in the same breath.
+// is "does it conform". The verdicts are printed here as well, because a
+// creator standing the page up wants them in the same breath.
 //
 // Real asset layer, but NOT production's defaults — see `serveAssembled`.
 // `wrangler dev` attaches `; charset=utf-8` to text types on its own and the

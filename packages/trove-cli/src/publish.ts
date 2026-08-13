@@ -6,10 +6,10 @@ import { assembleTrove } from "@/src/assemble"
 import { localReader } from "@/src/local-reader"
 import { readRemixMarker } from "@/src/remix"
 import { describeFailures } from "@/src/report"
+import { waitUntilServing } from "@/src/serving"
 import {
 	deployAssembled,
 	detectCredentialState,
-	waitUntilServing,
 	writeWranglerConfig,
 } from "@/src/wrangler"
 

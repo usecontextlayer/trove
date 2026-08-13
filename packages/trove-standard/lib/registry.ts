@@ -22,17 +22,12 @@ export const TROVE_ORIGIN = "https://trove.usecontextlayer.com"
  * record that does not exist there, in the same breath as the write that
  * created it elsewhere. Only whoever performed the write knows where it landed.
  *
- * This replaced `canonicalUrlForId`, and the rename is the change. The old
- * function returned a trove's "canonical URL": a second identity we minted and
- * served, which every document told people to share, and which every read
- * therefore routed through us. It justified itself as the name that survives a
- * trove moving host — while §7 simultaneously bound an id to one host forever
- * and offered no move route, so it was a stable name for something already
- * stable. What it actually bought was our Worker on the critical path for
- * reading someone else's static files.
- *
- * A record is not an identity. It is one party's observation about a trove, it
- * is optional to consult, and nothing breaks when it is absent.
+ * A record is not an identity, and must never become one. It is one party's
+ * observation about a trove, it is optional to consult, and nothing breaks when
+ * it is absent — so this URL is never the one to share, and nothing derives a
+ * trove's own address from it. A second, Trove-served identity for every trove
+ * would put our Worker on the critical path for reading someone else's static
+ * files.
  */
 export function recordUrlForId(registryUrl: string, id: string): string {
 	assertWellFormedId(id)

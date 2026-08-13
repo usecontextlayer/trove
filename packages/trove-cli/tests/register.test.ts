@@ -96,7 +96,7 @@ beforeAll(async () => {
 		throw new Error("server did not bind a port")
 	}
 	// One server plays both roles; the registry origin differs from the host
-	// origin in production, and parseHostUrl is tested against that separately.
+	// origin in production, and parseTroveUrl is tested against that separately.
 	hostUrl = `http://127.0.0.1:${address.port}`
 	registryUrl = "https://trove.usecontextlayer.com"
 	nextReply = { body: recordFor(PASSING), status: 201 }
@@ -113,7 +113,7 @@ afterEach(() => {
 	process.exitCode = 0
 })
 
-// The URL boundary all three commands share now lives in trove-url.test.ts.
+// The URL boundary all three commands share is tested in trove-url.test.ts.
 
 describe("register", () => {
 	it("reads the id off the served trove, and prints the trove URL and the record", async () => {
@@ -216,42 +216,41 @@ describe("register", () => {
 		vi.spyOn(console, "log").mockImplementation(() => {})
 		const flappingUrl = `http://127.0.0.1:${address.port}`
 
-		await register({
-			hostUrl: flappingUrl,
-			registryUrl: flappingUrl,
-			settling: { pollMs: 5, timeoutMs: 5_000 },
-		})
+		// Real clock, real polling: two one-second waits inside a sixty-second
+		// budget, so there is no race to lose and nothing to tune.
+		await register({ hostUrl: flappingUrl, registryUrl: flappingUrl })
 
 		expect(attempts).toBe(3)
 		flapping.close()
 	})
 
 	it("fails loudly when nothing is ever served, and never advises republishing", async () => {
-		const empty = http.createServer((_request, response) => {
-			response.writeHead(404).end()
-		})
-		await new Promise<void>((resolve) => empty.listen(0, "127.0.0.1", resolve))
-		const address = empty.address()
-		if (address === null || typeof address === "string") {
-			throw new Error("server did not bind a port")
+		// What is asserted here is register's MESSAGE, and reaching it costs a
+		// full sixty-second poll — so the clock is faked and the far side is a
+		// stub. serving.test.ts owns the deadline itself; a trove that is not
+		// there has no bytes for a real server to serve.
+		const realFetch = globalThis.fetch
+		globalThis.fetch = (async () => new Response("", { status: 404 })) as typeof fetch
+		vi.useFakeTimers()
+		try {
+			const attempt = register({
+				hostUrl: "https://trove-nothing.example.workers.dev",
+				registryUrl,
+			}).then(
+				() => new Error("register resolved, but nothing was ever served"),
+				(error: unknown) => error,
+			)
+			await vi.advanceTimersByTimeAsync(60_000)
+			const thrown = String(await attempt)
+
+			expect(thrown).toMatch(/nothing is serving a trove/)
+			// The old message said "Publish it first" unconditionally, which after
+			// a successful publish is advice to burn an id.
+			expect(thrown).toMatch(/do NOT republish/)
+		} finally {
+			vi.useRealTimers()
+			globalThis.fetch = realFetch
 		}
-		await expect(
-			register({
-				hostUrl: `http://127.0.0.1:${address.port}`,
-				registryUrl,
-				settling: { pollMs: 5, timeoutMs: 40 },
-			}),
-		).rejects.toThrow(/nothing is serving a trove/)
-		// The old message said "Publish it first" unconditionally, which after a
-		// successful publish is advice to burn an id.
-		await expect(
-			register({
-				hostUrl: `http://127.0.0.1:${address.port}`,
-				registryUrl,
-				settling: { pollMs: 5, timeoutMs: 40 },
-			}),
-		).rejects.toThrow(/do NOT republish/)
-		empty.close()
 	})
 })
 

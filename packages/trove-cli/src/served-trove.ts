@@ -5,7 +5,8 @@ import * as path from "node:path"
 import { mintId } from "@usecontextlayer/trove-standard"
 import { assembleTrove } from "@/src/assemble"
 import { readRemixMarker } from "@/src/remix"
-import { serveAssembled, waitUntilServing, writeWranglerConfig } from "@/src/wrangler"
+import { waitUntilServing } from "@/src/serving"
+import { serveAssembled, writeWranglerConfig } from "@/src/wrangler"
 
 // Standing a folder up as a real, locally-served trove — the one thing `dev`,
 // `verify <folder>` and `dev screenshot` all need before they can do their
@@ -13,12 +14,11 @@ import { serveAssembled, waitUntilServing, writeWranglerConfig } from "@/src/wra
 // part is the teardown: the server is a spawned `wrangler dev` process, and a
 // command that forgets to stop it leaks one per invocation.
 //
-// That is not hypothetical. Before this existed, the only caller was `dev`,
-// which deliberately never stops on success because blocking IS its job — so
-// the obvious way to reuse it (copy the shape) is exactly the way that leaks.
-// Here teardown is unconditional and in one `finally`, and the one command that
-// wants to keep serving opts into that INSIDE the bracket by awaiting
-// `finished`.
+// That is not hypothetical, and `dev` is why: it deliberately never stops on
+// success, because blocking IS its job — so copying its shape is exactly the
+// way that leaks. Here teardown is unconditional and in one `finally`, and the
+// one command that wants to keep serving opts into that INSIDE the bracket by
+// awaiting `finished`.
 
 /** A trove assembled from a folder and served by the host's own asset layer. */
 export interface ServedTrove {

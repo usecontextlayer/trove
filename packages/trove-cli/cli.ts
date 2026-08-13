@@ -99,7 +99,7 @@ devCommand
 devCommand
 	.command("screenshot <folder>")
 	.description(
-		"Serve the folder as a trove, photograph the page, and print where the images are. Also measures whether the body scrolls sideways at the viewport it shot — a screenshot alone cannot tell you that, and a narrow headless WINDOW is not a mobile LAYOUT VIEWPORT, which is how one page acquired a defensive CSS rule for a bug it never had. Exits non-zero when the page overflows. Needs Playwright installed in the directory you run this from; every other command does not.",
+		"Serve the folder as a trove, photograph the page, and print where the images are. Also measures whether the body scrolls sideways at the viewport it shot — a screenshot alone cannot tell you that, because a narrow headless WINDOW is not a mobile LAYOUT VIEWPORT. Exits non-zero when the page overflows. Needs no setup: it drives a Chromium you already have — the one `playwright install` downloads, or Google Chrome, or Edge — and names what to install only if none of them is there.",
 	)
 	.option("--viewport <WxH>", "viewport to render at", "1280x800")
 	.option("--theme <theme>", "light, dark, or both", "light")
