@@ -214,25 +214,6 @@ export function serveAssembled(options: { deployDir: string; port: number }): De
 	}
 }
 
-/**
- * The characteristic settling 404 while a deploy propagates: text/plain
- * content type and the 17-byte body "error code: 1042" (measured). Diagnostic
- * only — propagation also emits 404s WITHOUT this signature (measured: a
- * healthy fresh deploy served signature-less 404s before settling to 200), so
- * no 404 shape is proof of a broken deployment while the clock is running.
- */
-export function isSettling404(
-	status: number,
-	contentType: string | null,
-	body: string,
-): boolean {
-	return (
-		status === 404 &&
-		(contentType ?? "").startsWith("text/plain") &&
-		body === "error code: 1042"
-	)
-}
-
 /** How long to keep trying a freshly deployed path, and how often. The defaults are sized to the measured propagation window. */
 export interface SettlingOptions {
 	pollMs?: number

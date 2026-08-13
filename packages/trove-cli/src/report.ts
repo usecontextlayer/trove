@@ -18,8 +18,9 @@ const STATUS_LABEL = {
 } as const satisfies Record<ContractCheckStatus, string>
 
 /**
- * Every check with its verdict, for `trove dev` — where the passing ones are
- * the point, since the question being asked is "is this ready to publish".
+ * Every check with its verdict, for `trove dev` and `trove verify` — where the
+ * passing ones are the point, since the question being asked is "does this
+ * conform", not "what is wrong with it".
  * `describeFailures` stays separate because publish and register speak only
  * when something is wrong.
  */
@@ -68,8 +69,9 @@ export function describeNonConformance(
 		"",
 		"  - Every file DID match its digest. That is a separate claim from the",
 		"    one above, and it is not the one that failed.",
-		"  - Whatever failed is in your copy now. Publishing it fails the same",
-		"    checks, in the same way.",
+		"  - Whatever failed in the parent's own CONTENT is in your copy now —",
+		"    anti-cloaking above all. Publish regenerates the block, the manifest",
+		"    and the headers, so failures in THOSE do not carry over.",
 		...(cloaked
 			? [
 					"  - anti-cloaking failed. That means text addressed to agents that a",

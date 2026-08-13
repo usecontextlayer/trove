@@ -32,10 +32,9 @@ const viewportSchema = z
 	.string()
 	.regex(/^\d{2,5}x\d{2,5}$/)
 	.transform((value) => {
-		const [width, height] = value.split("x").map(Number)
-		return { height: height ?? 0, width: width ?? 0 }
+		const [width, height] = value.split("x")
+		return { height: Number(height), width: Number(width) }
 	})
-	.refine((size) => size.width >= 10 && size.height >= 10)
 
 const themeSchema = z.enum(["light", "dark", "both"])
 
@@ -133,9 +132,7 @@ program
 	)
 	.argument("<folder>", "the folder to publish; must contain an AGENTS.md")
 	.action(async (folder: string) => {
-		if (!existsSync(folder) || !statSync(folder).isDirectory()) {
-			throw new Error(`${folder} is not a directory.`)
-		}
+		requireDirectory(folder)
 		await publish({ folder })
 	})
 
@@ -157,7 +154,7 @@ program
 program
 	.command("remix")
 	.description(
-		"Fetch a trove by its URL, verify every file against its manifest digests, strip the inherited identity, and record lineage for the next publish. It hashes every file and refuses the whole trove on any mismatch, so reach for it rather than hand-rolling that check. It does NOT run the full conformance checks — `trove dev` does that, locally, before you publish.",
+		"Fetch a trove by its URL, verify every file against its manifest digests, strip the inherited identity, and record lineage for the next publish. It hashes every file and refuses the whole trove on any mismatch, so reach for it rather than hand-rolling that check. It ALSO runs the standard's conformance checks against the parent and prints an unmissable banner if any fail — but it does not stop, because forking a trove in order to fix it is legitimate. To check a trove without taking a copy, use `trove verify <url>`.",
 	)
 	.argument("<trove-url>", "the trove's URL")
 	.argument("[dest]", "destination directory (default: ./trove-remix-<id>)")

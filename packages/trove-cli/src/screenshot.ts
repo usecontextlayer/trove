@@ -1,8 +1,7 @@
 import { mkdtempSync } from "node:fs"
-import { createRequire } from "node:module"
 import * as os from "node:os"
 import * as path from "node:path"
-import { pathToFileURL } from "node:url"
+import { type Browser, chromium, type LaunchOptions } from "playwright-core"
 import { freePort, withServedTrove } from "@/src/served-trove"
 
 // `trove dev screenshot` — stand the folder up as a real trove, photograph the
@@ -29,35 +28,48 @@ import { freePort, withServedTrove } from "@/src/served-trove"
 // strangers' troves.
 
 /**
- * The slice of Playwright this uses, declared structurally.
+ * Where a browser comes from, in the order worth trying.
  *
- * Playwright is NOT a build-time dependency — this module must compile and ship
- * whether or not it is installed anywhere — so the shape is written out rather
- * than imported. It is also the seam a fake would type against.
+ * `playwright-core` deliberately ships no browser binaries, so the question is
+ * never "is Playwright installed" — it is "is there a Chromium on this machine
+ * we may drive". Almost always there is: the ladder ends at the browser the
+ * person already uses.
+ *
+ * Bundled Chromium goes first because it is the one whose version we know. The
+ * system channels come next because they cost no download, which is the whole
+ * reason this command needs no setup step. Only when a machine has none of them
+ * is there anything for the user to do, and then the error says exactly what.
  */
-interface PageLike {
-	/** Playwright accepts an expression STRING as well as a function — see MEASURE_WIDTHS. */
-	evaluate<T>(expression: string): Promise<T>
-	goto(url: string, options?: { waitUntil?: "load" | "networkidle" }): Promise<unknown>
-	screenshot(options: { fullPage?: boolean; path: string }): Promise<unknown>
-}
-interface ContextLike {
-	close(): Promise<void>
-	newPage(): Promise<PageLike>
-}
-interface BrowserLike {
-	close(): Promise<void>
-	newContext(options: {
-		colorScheme?: "dark" | "light"
-		viewport?: { height: number; width: number }
-	}): Promise<ContextLike>
-}
-interface PlaywrightLike {
-	chromium: { launch(options?: { headless?: boolean }): Promise<BrowserLike> }
-}
+const BROWSER_LADDER = [
+	{ launch: {}, what: "the Chromium that `playwright install` downloads" },
+	{ launch: { channel: "chrome" }, what: "Google Chrome" },
+	{ launch: { channel: "msedge" }, what: "Microsoft Edge" },
+	{ launch: { channel: "chromium" }, what: "system Chromium" },
+] as const satisfies readonly { launch: LaunchOptions; what: string }[]
 
-const INSTALL_HINT =
-	"npm install --save-dev playwright && npx playwright install chromium"
+/**
+ * Open a browser, trying each rung and reporting every failure if none works.
+ *
+ * Errors are collected rather than swallowed: "no browser" and "Chrome is
+ * installed but refused to start" are different problems, and a caller that
+ * only ever hears the first will go install something it already has.
+ */
+async function launchBrowser(): Promise<{ browser: Browser; what: string }> {
+	const refusals: string[] = []
+	for (const rung of BROWSER_LADDER) {
+		try {
+			const browser = await chromium.launch({ ...rung.launch, headless: true })
+			return { browser, what: rung.what }
+		} catch (error) {
+			refusals.push(
+				`  ${rung.what}: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`,
+			)
+		}
+	}
+	throw new Error(
+		`no Chromium-based browser could be started, so there is nothing to photograph the page with. Install one — \`npx playwright install chromium\` is the smallest fix, and Google Chrome or Microsoft Edge work too. Every other trove command runs without a browser.\n\nTried:\n${refusals.join("\n")}`,
+	)
+}
 
 /**
  * The two numbers that decide whether the body scrolls sideways, evaluated in
@@ -72,36 +84,6 @@ const INSTALL_HINT =
  */
 const MEASURE_WIDTHS =
 	"({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth })"
-
-/**
- * Resolve Playwright from the CALLER'S working directory, not from this module.
- *
- * The distinction is the whole reason this function exists. Node resolves an
- * import relative to the importing file, which under `npx @usecontextlayer/trove`
- * is a temporary directory that will never contain Playwright — so a perfectly
- * good project-local install would be invisible. Resolving from cwd is what
- * makes "install it in your project" true advice.
- *
- * Keeping it out of `dependencies` is deliberate: the CLI has exactly one
- * runtime dependency, ships as a 540 KB tarball, and is held to "never require
- * an account, setup, or config". A browser download is a real setup step, and
- * only this one command needs it.
- */
-async function loadPlaywright(): Promise<PlaywrightLike> {
-	const requireFromCwd = createRequire(pathToFileURL(path.join(process.cwd(), "-")))
-	const attempts: string[] = []
-	for (const name of ["playwright", "playwright-core"]) {
-		try {
-			const resolved = requireFromCwd.resolve(name)
-			return (await import(pathToFileURL(resolved).href)) as PlaywrightLike
-		} catch (error) {
-			attempts.push(`${name}: ${error instanceof Error ? error.message : String(error)}`)
-		}
-	}
-	throw new Error(
-		`this command needs Playwright, and neither "playwright" nor "playwright-core" resolves from ${process.cwd()}.\n  ${INSTALL_HINT}\nEvery other trove command works without it.\n\n${attempts.join("\n")}`,
-	)
-}
 
 export interface ScreenshotOptions {
 	folder: string
@@ -122,7 +104,6 @@ export interface Shot {
 
 export async function screenshot(options: ScreenshotOptions): Promise<void> {
 	const { folder, fullPage, theme, viewport } = options
-	const playwright = await loadPlaywright()
 	const outDir =
 		options.outDir ?? mkdtempSync(path.join(os.tmpdir(), "trove-screenshot-"))
 	const themes: ("dark" | "light")[] = theme === "both" ? ["light", "dark"] : [theme]
@@ -130,7 +111,8 @@ export async function screenshot(options: ScreenshotOptions): Promise<void> {
 	const shots = await withServedTrove(
 		{ folder, port: await freePort() },
 		async (served) => {
-			const browser = await playwright.chromium.launch({ headless: true })
+			const { browser, what } = await launchBrowser()
+			console.error(`photographing with ${what}`)
 			try {
 				const captured: Shot[] = []
 				for (const colorScheme of themes) {

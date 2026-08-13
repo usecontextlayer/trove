@@ -1,12 +1,7 @@
 import { readFileSync } from "node:fs"
 import * as path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import {
-	isSettling404,
-	parseDeployOutput,
-	parseWhoamiOutput,
-	waitUntilServing,
-} from "@/src/wrangler"
+import { parseDeployOutput, parseWhoamiOutput, waitUntilServing } from "@/src/wrangler"
 
 // The fixture is a REAL `wrangler deploy --temporary` capture (2026-08-10,
 // wrangler 4.120.1) — refreshing it means running a real anonymous deploy
@@ -85,24 +80,6 @@ describe("parseWhoamiOutput", () => {
 		expect(() => parseWhoamiOutput("something entirely new", 7)).toThrow(
 			/could not determine wrangler credential state/,
 		)
-	})
-})
-
-describe("isSettling404", () => {
-	it("recognizes the measured settling signature", () => {
-		expect(isSettling404(404, "text/plain; charset=UTF-8", "error code: 1042")).toBe(true)
-	})
-
-	it("rejects a genuine miss (no content type, empty body)", () => {
-		expect(isSettling404(404, null, "")).toBe(false)
-	})
-
-	it("rejects a 404 with a different body", () => {
-		expect(isSettling404(404, "text/plain", "not found")).toBe(false)
-	})
-
-	it("rejects non-404 statuses", () => {
-		expect(isSettling404(500, "text/plain", "error code: 1042")).toBe(false)
 	})
 })
 
