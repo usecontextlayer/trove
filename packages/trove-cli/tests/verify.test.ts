@@ -174,7 +174,11 @@ describe("verify", () => {
 		expect(statusOf(result, "mandated-block")).toBe("ok")
 		expect(statusOf(result, "files")).toBe("ok")
 		expect(result.subject).toContain(source)
-	}, 60_000)
+		// Strictly MORE than waitUntilServing's own 60s budget. Equal to it, the
+		// runner kills the test at the same moment the code would have failed
+		// with the last response it saw — so the loud error is unreachable and
+		// every slow boot reports as an unexplained "Test timed out".
+	}, 120_000)
 
 	it("renders the verdict for a reader", () => {
 		const rendered = describeVerdict({

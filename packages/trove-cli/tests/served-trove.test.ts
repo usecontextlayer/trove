@@ -35,7 +35,7 @@ describe("withServedTrove", () => {
 		expect(served.ok).toBe(true)
 		expect(served.url).toContain(String(port))
 		expect(served.id).toMatch(/^[0-9a-hj-km-np-tv-z]{24}$/)
-	}, 90_000)
+	}, 120_000)
 
 	it("stops the server even when the caller throws, and waits for it to actually exit", async () => {
 		// The bug this pins: `stop()` is `child.kill()`, which returns
@@ -50,5 +50,5 @@ describe("withServedTrove", () => {
 		).rejects.toThrow(/the caller failed/)
 
 		expect(await isFree(port)).toBe(true)
-	}, 90_000)
+	}, 120_000)
 })
