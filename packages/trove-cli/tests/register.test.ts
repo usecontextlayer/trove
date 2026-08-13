@@ -11,7 +11,7 @@ import {
 } from "@usecontextlayer/trove-standard"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { assembleTrove } from "@/src/assemble"
-import { parseHostUrl, register } from "@/src/register"
+import { register } from "@/src/register"
 import { summarizeReport } from "@/src/report"
 
 // The far side of `register` is our own registry's HTTP contract, exercised
@@ -113,31 +113,7 @@ afterEach(() => {
 	process.exitCode = 0
 })
 
-describe("parseHostUrl", () => {
-	it("normalizes a host URL to its origin", () => {
-		expect(parseHostUrl(registryUrl, "https://trove-abc.some-account.workers.dev/")).toBe(
-			"https://trove-abc.some-account.workers.dev",
-		)
-	})
-
-	it("rejects a registry URL, naming the trove URL publish printed", () => {
-		expect(() =>
-			parseHostUrl(registryUrl, `https://trove.usecontextlayer.com/a/${troveId}`),
-		).toThrow(/trove's own URL/)
-	})
-
-	it("rejects something that is not a URL", () => {
-		expect(() => parseHostUrl(registryUrl, "trove-abc.workers.dev")).toThrow(/not a URL/)
-	})
-
-	// Same boundary rule as remix's (§2.1), enforced rather than normalized:
-	// returning the origin would accept one argument and act on another.
-	it("rejects a trove URL carrying a path", () => {
-		expect(() =>
-			parseHostUrl(registryUrl, "https://trove-abc.some-account.workers.dev/foo"),
-		).toThrow(/host root/)
-	})
-})
+// The URL boundary all three commands share now lives in trove-url.test.ts.
 
 describe("register", () => {
 	it("reads the id off the served trove, and prints the trove URL and the record", async () => {

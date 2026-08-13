@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs"
+import { mkdtempSync, rmSync } from "node:fs"
 import { createServer } from "node:net"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -88,6 +88,15 @@ export async function withServedTrove<T>(
 		await waitUntilServing(server.url)
 		return await use({ finished: server.finished, id, url: server.url })
 	} finally {
+		// AWAIT the exit, do not just signal it. `stop()` is `child.kill()`, which
+		// returns immediately — so returning here without waiting hands control
+		// back while wrangler is still holding the port, and the next command to
+		// ask for a free one can be handed the one this is still using.
 		server.stop()
+		await server.finished
+		// The assembled copy is this run's, and nothing outside reads it after
+		// the server is gone. Left behind, every verify and every screenshot
+		// leaks a directory tree.
+		rmSync(deployDir, { force: true, recursive: true })
 	}
 }

@@ -6,7 +6,12 @@ import { mintId } from "@usecontextlayer/trove-standard"
 import mime from "mime"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { assembleTrove } from "@/src/assemble"
-import { parseVerifyTarget, verify } from "@/src/verify"
+import {
+	describeVerdict,
+	parseVerifyTarget,
+	type VerifyResult,
+	verify,
+} from "@/src/verify"
 
 const REGISTRY = "https://trove.usecontextlayer.com"
 
@@ -97,65 +102,87 @@ describe("parseVerifyTarget", () => {
 	})
 })
 
+/** The verdict for one named check — what these tests are actually about. */
+function statusOf(result: VerifyResult, name: string): string | undefined {
+	return result.report.checks.find((check) => check.name === name)?.status
+}
+
 describe("verify", () => {
-	it("passes a conformant trove, printing every verdict and exiting zero", async () => {
-		const log = vi.spyOn(console, "log").mockImplementation(() => {})
-		await verify({ registryUrl: REGISTRY, target: troveUrl })
-
-		const printed = log.mock.calls.map((call) => String(call[0])).join("\n")
-		// All seven named, so the report says what it checked rather than only
-		// what failed — this is the reader's whole picture of a stranger's trove.
-		for (const name of [
-			"mandated-block",
-			"manifest",
-			"agents-md",
-			"files",
-			"noindex",
-			"caps",
-			"anti-cloaking",
-		]) {
-			expect(printed).toContain(name)
-		}
-		expect(printed).toContain("conforms to the trove standard")
-		expect(process.exitCode).toBeFalsy()
+	it("passes a conformant trove and reports on all seven checks", async () => {
+		const result = await verify({ registryUrl: REGISTRY, target: troveUrl })
+		expect(result.report.ok).toBe(true)
+		expect(result.subject).toBe(troveUrl)
+		// Every check named, so the verdict says what it checked rather than only
+		// what failed — the reader's whole picture of a stranger's trove.
+		expect(result.report.checks.map((check) => check.name).sort()).toEqual(
+			[
+				"agents-md",
+				"anti-cloaking",
+				"caps",
+				"files",
+				"manifest",
+				"mandated-block",
+				"noindex",
+			].sort(),
+		)
 	})
 
-	it("verifies the FILES, unlike the registry position", async () => {
-		// The registry deliberately reports files/caps as not-checked. A reader is
-		// the position that is about to trust the bytes, so here they must run —
-		// this is the difference that makes the command worth having.
-		const log = vi.spyOn(console, "log").mockImplementation(() => {})
-		await verify({ registryUrl: REGISTRY, target: troveUrl })
-		const printed = log.mock.calls.map((call) => String(call[0])).join("\n")
-		expect(printed).not.toContain("----  files")
-		expect(printed).not.toContain("this position does not verify manifest files")
+	it("VERIFIES the files, where the registry position declines to", async () => {
+		// The registry reports files/caps as not-checked on purpose. A reader is
+		// the position about to trust the bytes, so here they must actually run —
+		// this is the difference that makes the command worth having, and
+		// asserting the status is the only way to see it.
+		const result = await verify({ registryUrl: REGISTRY, target: troveUrl })
+		expect(statusOf(result, "files")).toBe("ok")
+		expect(statusOf(result, "caps")).toBe("ok")
 	})
 
-	it("fails, says which check, and exits non-zero on a tampered file", async () => {
+	it("fails the FILES check specifically on a tampered file", async () => {
 		const original = readFileSync(path.join(assembledDir, "data.csv"))
 		writeFileSync(path.join(assembledDir, "data.csv"), "tampered\n")
 		try {
-			const log = vi.spyOn(console, "log").mockImplementation(() => {})
-			await verify({ registryUrl: REGISTRY, target: troveUrl })
-			const printed = log.mock.calls.map((call) => String(call[0])).join("\n")
-			expect(printed).toContain("FAIL")
-			expect(printed).toContain("files")
-			expect(printed).toContain("does NOT conform")
-			expect(process.exitCode).toBe(1)
+			const result = await verify({ registryUrl: REGISTRY, target: troveUrl })
+			expect(result.report.ok).toBe(false)
+			// Which check caught it, not merely that something did.
+			expect(statusOf(result, "files")).toBe("failed")
+			expect(statusOf(result, "agents-md")).toBe("ok")
 		} finally {
 			writeFileSync(path.join(assembledDir, "data.csv"), original)
 		}
 	})
 
-	it("fails on a trove that serves the right bytes without the noindex header", async () => {
-		// Every digest still matches here. A digest-only check — which is what a
+	it("fails the NOINDEX check on a trove whose bytes are all correct", async () => {
+		// Every digest still matches. A digest-only check — which is what a
 		// reader hand-rolls — passes this trove; the standard does not.
 		noindex = false
-		const log = vi.spyOn(console, "log").mockImplementation(() => {})
-		await verify({ registryUrl: REGISTRY, target: troveUrl })
-		const printed = log.mock.calls.map((call) => String(call[0])).join("\n")
-		expect(printed).toContain("noindex")
-		expect(printed).toContain("does NOT conform")
-		expect(process.exitCode).toBe(1)
+		const result = await verify({ registryUrl: REGISTRY, target: troveUrl })
+		expect(result.report.ok).toBe(false)
+		expect(statusOf(result, "noindex")).toBe("failed")
+		expect(statusOf(result, "files")).toBe("ok")
+	})
+
+	it("checks a FOLDER by assembling and serving it, exactly as publish would", async () => {
+		// The other half of the command, and the half no test reached before: a
+		// folder carries no mandated block and no manifest until assembly makes
+		// them, so this answers "what would ship" rather than "what is on disk".
+		const source = mkdtempSync(path.join(os.tmpdir(), "trove-verify-folder-"))
+		writeFileSync(path.join(source, "AGENTS.md"), "# Folder\n\nCheck me first.\n")
+		writeFileSync(path.join(source, "data.csv"), "a,b\n1,2\n")
+
+		const result = await verify({ registryUrl: REGISTRY, target: source })
+		expect(result.report.ok).toBe(true)
+		expect(statusOf(result, "mandated-block")).toBe("ok")
+		expect(statusOf(result, "files")).toBe("ok")
+		expect(result.subject).toContain(source)
+	}, 60_000)
+
+	it("renders the verdict for a reader", () => {
+		const rendered = describeVerdict({
+			report: { checks: [{ name: "noindex", status: "failed" }], ok: false },
+			subject: "https://trove-abc.example.workers.dev",
+		})
+		expect(rendered).toContain("https://trove-abc.example.workers.dev")
+		expect(rendered).toContain("noindex")
+		expect(rendered).toContain("does NOT conform")
 	})
 })

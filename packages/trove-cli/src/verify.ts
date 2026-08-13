@@ -1,8 +1,12 @@
 import { existsSync, statSync } from "node:fs"
-import { checkTrove, httpReader } from "@usecontextlayer/trove-standard"
-import { parseTroveUrl } from "@/src/remix"
+import {
+	type ContractCheckReport,
+	checkTrove,
+	httpReader,
+} from "@usecontextlayer/trove-standard"
 import { describeChecks } from "@/src/report"
 import { freePort, withServedTrove } from "@/src/served-trove"
+import { parseTroveUrl } from "@/src/trove-url"
 
 // `trove verify` — the §6.1 checker, asking one question: does this conform?
 //
@@ -52,7 +56,10 @@ export function parseVerifyTarget(registryUrl: string, target: string): VerifyTa
 		url = null
 	}
 	if (url !== null && (url.protocol === "http:" || url.protocol === "https:")) {
-		return { kind: "url", troveUrl: parseTroveUrl(registryUrl, target) }
+		return {
+			kind: "url",
+			troveUrl: parseTroveUrl({ command: "trove verify", from: target, registryUrl }),
+		}
 	}
 	if (existsSync(target) && statSync(target).isDirectory()) {
 		return { folder: target, kind: "folder" }
@@ -62,48 +69,60 @@ export function parseVerifyTarget(registryUrl: string, target: string): VerifyTa
 	)
 }
 
+/** The verdict, and what it is about. */
+export interface VerifyResult {
+	report: ContractCheckReport
+	/** What was checked, as the caller named it — a URL, or a folder path. */
+	subject: string
+}
+
+/** A live trove, checked over HTTP exactly as a reader would. */
+async function verifyLive(troveUrl: string): Promise<VerifyResult> {
+	const { report } = await checkTrove({ read: httpReader(troveUrl) })
+	return { report, subject: troveUrl }
+}
+
+/**
+ * A folder, assembled and served exactly as publish would, then checked over
+ * real HTTP — so the answer is about what WOULD ship, not about the loose files
+ * on disk, which carry no mandated block and no manifest until assembly
+ * generates them.
+ */
+async function verifyFolder(folder: string): Promise<VerifyResult> {
+	return withServedTrove({ folder, port: await freePort() }, async (served) => {
+		const { report } = await checkTrove({
+			expectedId: served.id,
+			read: httpReader(served.url),
+		})
+		return { report, subject: `${folder} (served locally)` }
+	})
+}
+
+/**
+ * Check a trove and RETURN the verdict; printing and the exit code belong to the
+ * caller.
+ *
+ * Returning rather than printing is what makes this testable through its
+ * contract: while it only printed, the only way to assert anything about it was
+ * to scrape stdout, which pins the wording instead of the verdict and cannot
+ * tell WHICH check failed. `remixTrove` already returns its report; this is the
+ * same shape.
+ */
 export async function verify(options: {
 	registryUrl: string
 	target: string
-}): Promise<void> {
-	const { registryUrl, target } = options
-	const parsed = parseVerifyTarget(registryUrl, target)
+}): Promise<VerifyResult> {
+	const parsed = parseVerifyTarget(options.registryUrl, options.target)
+	return parsed.kind === "url" ? verifyLive(parsed.troveUrl) : verifyFolder(parsed.folder)
+}
 
-	// The folder form assembles and serves the trove exactly as publish would
-	// and checks it over real HTTP — so the answer is about what WOULD ship, not
-	// about the loose files on disk, which carry no mandated block and no
-	// manifest until assembly generates them.
-	const { report, url } =
-		parsed.kind === "url"
-			? {
-					report: (await checkTrove({ read: httpReader(parsed.troveUrl) })).report,
-					url: parsed.troveUrl,
-				}
-			: await withServedTrove(
-					{ folder: parsed.folder, port: await freePort() },
-					async (served) => ({
-						report: (
-							await checkTrove({
-								expectedId: served.id,
-								read: httpReader(served.url),
-							})
-						).report,
-						url: `${parsed.folder} (served locally)`,
-					}),
-				)
-
-	console.log(url)
-	console.log(describeChecks(report))
-	console.log(
-		report.ok
+/** The verdict as a reader sees it. Separate from the checking so the checking can be asserted on. */
+export function describeVerdict(result: VerifyResult): string {
+	return [
+		result.subject,
+		describeChecks(result.report),
+		result.report.ok
 			? "conforms to the trove standard — every check passed"
 			: "does NOT conform — the failing checks are above",
-	)
-
-	// Non-zero so this is usable as a gate in a script, matching `register`,
-	// which also reports a real verdict through the exit code rather than only
-	// in prose.
-	if (!report.ok) {
-		process.exitCode = 1
-	}
+	].join("\n")
 }

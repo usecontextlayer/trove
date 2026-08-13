@@ -6,11 +6,12 @@ import { version } from "@/package.json"
 import { dev } from "@/src/dev"
 import { env } from "@/src/env"
 import { publish } from "@/src/publish"
-import { parseHostUrl, register } from "@/src/register"
-import { parseTroveUrl, remixTrove } from "@/src/remix"
+import { register } from "@/src/register"
+import { remixTrove } from "@/src/remix"
 import { describeNonConformance } from "@/src/report"
 import { screenshot } from "@/src/screenshot"
-import { verify } from "@/src/verify"
+import { parseTroveUrl } from "@/src/trove-url"
+import { describeVerdict, verify } from "@/src/verify"
 
 const program = new Command()
 	.name("trove")
@@ -59,7 +60,12 @@ program
 		"a live trove's URL, or a folder you have not published yet",
 	)
 	.action(async (target: string) => {
-		await verify({ registryUrl: env.TROVE_REGISTRY_URL, target })
+		const result = await verify({ registryUrl: env.TROVE_REGISTRY_URL, target })
+		console.log(describeVerdict(result))
+		// Non-zero so this works as a gate in a script, matching `register`.
+		if (!result.report.ok) {
+			process.exitCode = 1
+		}
 	})
 
 // `dev` is where the LOCAL, not-yet-published folder is worked on, and it has
@@ -146,7 +152,11 @@ program
 		// Parsed at the boundary, like remix's — the core takes a normalized
 		// origin and never a raw argument.
 		await register({
-			hostUrl: parseHostUrl(env.TROVE_REGISTRY_URL, hostUrl),
+			hostUrl: parseTroveUrl({
+				command: "trove register",
+				from: hostUrl,
+				registryUrl: env.TROVE_REGISTRY_URL,
+			}),
 			registryUrl: env.TROVE_REGISTRY_URL,
 		})
 	})
@@ -159,7 +169,11 @@ program
 	.argument("<trove-url>", "the trove's URL")
 	.argument("[dest]", "destination directory (default: ./trove-remix-<id>)")
 	.action(async (from: string, dest: string | undefined) => {
-		const troveUrl = parseTroveUrl(env.TROVE_REGISTRY_URL, from)
+		const troveUrl = parseTroveUrl({
+			command: "trove remix",
+			from,
+			registryUrl: env.TROVE_REGISTRY_URL,
+		})
 		const { destDir, fileCount, report } = await remixTrove({
 			...(dest === undefined ? {} : { destDir: dest }),
 			troveUrl,

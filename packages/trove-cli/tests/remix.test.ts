@@ -7,7 +7,7 @@ import { manifestSchema, mintId } from "@usecontextlayer/trove-standard"
 import mime from "mime"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { assembleTrove } from "@/src/assemble"
-import { parseTroveUrl, readRemixMarker, remixTrove } from "@/src/remix"
+import { readRemixMarker, remixTrove } from "@/src/remix"
 import { describeNonConformance } from "@/src/report"
 
 // The far side of remix is OUR OWN standard: a local server serving a REAL
@@ -69,49 +69,7 @@ function makeSource(): string {
 	return dir
 }
 
-describe("parseTroveUrl", () => {
-	it("accepts a trove's own URL", () => {
-		expect(
-			parseTroveUrl(
-				"https://trove.usecontextlayer.com",
-				"https://trove-abc.some-account.workers.dev",
-			),
-		).toBe("https://trove-abc.some-account.workers.dev")
-	})
-
-	// The two URL-taking commands take different URLs, so an agent will
-	// eventually hand each the other's. A registry URL 302s to a trove and has
-	// no subtree, so every path built under it 404s — worth naming rather than
-	// letting the caller discover it one failed fetch at a time.
-	it("rejects a registry URL, naming where the trove's own URL is published", () => {
-		expect(() =>
-			parseTroveUrl(
-				"https://trove.usecontextlayer.com",
-				`https://trove.usecontextlayer.com/a/${troveId}`,
-			),
-		).toThrow(/hostUrl/)
-	})
-
-	it("rejects something that is not a URL", () => {
-		expect(() =>
-			parseTroveUrl("https://trove.usecontextlayer.com", "trove-abc.workers.dev"),
-		).toThrow(/not a URL/)
-	})
-
-	// §2.1: troves live at a host root. A URL carrying a path parses fine and
-	// then resolves every manifest entry against the wrong base, so it has to be
-	// refused here rather than normalized away — silently dropping the path
-	// would act on a URL the caller never passed.
-	it.each([
-		["a path", "https://trove-abc.some-account.workers.dev/sub/path"],
-		["a query", "https://trove-abc.some-account.workers.dev/?a=1"],
-		["a fragment", "https://trove-abc.some-account.workers.dev/#x"],
-	])("rejects a trove URL carrying %s", (_label, given) => {
-		expect(() => parseTroveUrl("https://trove.usecontextlayer.com", given)).toThrow(
-			/host root/,
-		)
-	})
-})
+// The URL boundary all three commands share now lives in trove-url.test.ts.
 
 describe("remixTrove", () => {
 	it("runs the standard's checker over the parent — the third position", async () => {

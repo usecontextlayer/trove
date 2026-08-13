@@ -33,41 +33,6 @@ export function readRemixMarker(sourceDir: string): RemixMarker | null {
 }
 
 /**
- * The remix argument is the trove's OWN URL — the one address a trove has, and
- * the one that gets recorded as `parent`.
- *
- * The one confusion worth naming is a registry lookup URL (`<registry>/a/<id>`).
- * It is not a trove URL: it 302s to one, and its subtree does not exist, so
- * every path built under it 404s. An agent that reaches for it has almost
- * certainly read the record and taken the wrong field, so the message names the
- * right one.
- */
-export function parseTroveUrl(registryUrl: string, from: string): string {
-	let url: URL
-	try {
-		url = new URL(from)
-	} catch {
-		throw new Error(`"${from}" is not a URL. trove remix takes the trove's URL.`)
-	}
-	if (url.origin === new URL(registryUrl).origin) {
-		throw new Error(
-			`${from} is a Trove registry URL, not a trove. Pass the trove's own URL — the registry publishes it as "hostUrl" at ${registryUrl}/a/<id>.json.`,
-		)
-	}
-	// §2.1: troves live at a host root, and this is the boundary that has to say
-	// so. A URL carrying a path parses fine and then resolves every manifest
-	// entry against the wrong base — a silently wrong remix rather than a
-	// refusal. Returning the origin would drop the path just as silently, so it
-	// is rejected instead, naming the URL that would have worked.
-	if (url.pathname !== "/" || url.search !== "" || url.hash !== "") {
-		throw new Error(
-			`${from} carries a path, query, or fragment. A trove is served at a host root, so its URL is just the origin — try ${url.origin}.`,
-		)
-	}
-	return url.origin
-}
-
-/**
  * Clear the parent's identity from the copied page (§9). The attribute's own
  * source range is spliced, so every other byte of the parent's markup survives
  * exactly as served — publish then strips the remnant block and injects a fresh
