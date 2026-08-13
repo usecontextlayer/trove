@@ -7,10 +7,10 @@
 			"size": 3192
 		},
 		{
-			"digest": "sha256:6bb620dcbbf691168c8e06c17d00261f606aa80e866e0adb9fbdcda4aa87a46b",
+			"digest": "sha256:937af83137887c459d18912812bfbdb9200afa5936be97ad0fd32bdb449d90a6",
 			"mediaType": "text/markdown",
 			"path": "/AGENTS.md",
-			"size": 3264
+			"size": 3326
 		},
 		{
 			"digest": "sha256:691e83636e9341ff201fd93d2f7db3609ec79d806489b2a03eaa99d0525fc436",
@@ -27,5 +27,5 @@
 	],
 	"id": "https://trove.usecontextlayer.com",
 	"note": "Trove itself is a trove in spirit, not in exactness: its id is its URL, /trove.js is elided (its digest changes with each build), and /a/* and /register are routes, not files.",
-	"standard": 1
+	"standard": 2
 }

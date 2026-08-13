@@ -80,11 +80,16 @@ export const manifestSchema = z
 		// which version was remixed.
 		parent: z.url().optional(),
 		parentDigest: z.string().regex(DIGEST_PATTERN).optional(),
-		// A JSON number — not a string, not dotted. Consumers branch with >=; a
-		// wire format either breaks readers or does not. Deliberately NOT
-		// `literal(1)`: a newer trove must parse so the checker can report it as
-		// newer rather than as malformed, which is what makes the wire text
-		// changeable without invalidating troves already published.
+		// A JSON number — not a string, not dotted. A wire format either breaks
+		// readers or it does not, so minor and patch versions would carry no
+		// meaning here.
+		//
+		// Deliberately NOT pinned to the current version. Only the current version
+		// conforms — there is no backward compatibility and nothing is kept alive
+		// for a retired one — but "written to a version I do not implement" and
+		// "corrupt" are different answers, and a reader needs to be told which. So
+		// any version parses, and the checker is where the version verdict is
+		// formed and named.
 		standard: z.number().int().min(1),
 	})
 	.superRefine((manifest, ctx) => {

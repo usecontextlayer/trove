@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { manifestSchema } from "@/index"
+import { CURRENT_STANDARD, manifestSchema } from "@/index"
 
 const id = "8k2mfq7xr3nv9wbz4tcy6hjd"
 
@@ -18,13 +18,16 @@ function validManifest(): Record<string, unknown> {
 			},
 		],
 		id,
-		standard: 1,
+		standard: CURRENT_STANDARD,
 	}
 }
 
 describe("manifestSchema", () => {
 	it("accepts the standard's example", () => {
-		expect(manifestSchema.parse(validManifest())).toMatchObject({ id, standard: 1 })
+		expect(manifestSchema.parse(validManifest())).toMatchObject({
+			id,
+			standard: CURRENT_STANDARD,
+		})
 	})
 
 	it("accepts the index page listed as /", () => {
@@ -64,22 +67,6 @@ describe("manifestSchema", () => {
 		expect(manifestSchema.safeParse(manifest).success).toBe(false)
 	})
 
-	// A manifest states no URL of its own: a trove has one address, its own,
-	// and whoever is reading the manifest already holds it. Standard 1 DID
-	// carry a `canonical` field, so this pins that those troves still parse —
-	// the schema strips unknown keys rather than rejecting them, which is what
-	// makes the version lever usable rather than merely present.
-	it("still parses a standard-1 manifest carrying the retired canonical field", () => {
-		const manifest = {
-			...validManifest(),
-			canonical: "https://trove.usecontextlayer.com/a/8k2mfq7xr3nv9wbz4tcy6hjd",
-			standard: 1,
-		}
-		const parsed = manifestSchema.safeParse(manifest)
-		expect(parsed.success).toBe(true)
-		expect(parsed.data).not.toHaveProperty("canonical")
-	})
-
 	it("rejects an uppercase-hex digest", () => {
 		const manifest = validManifest()
 		manifest.files = [
@@ -107,20 +94,25 @@ describe("manifestSchema", () => {
 	})
 
 	it("rejects a string standard version", () => {
-		const manifest = { ...validManifest(), standard: "1" }
+		const manifest = { ...validManifest(), standard: String(CURRENT_STANDARD) }
 		expect(manifestSchema.safeParse(manifest).success).toBe(false)
 	})
 
 	it("rejects a dotted standard version", () => {
-		const manifest = { ...validManifest(), standard: 1.1 }
+		const manifest = { ...validManifest(), standard: CURRENT_STANDARD + 0.5 }
 		expect(manifestSchema.safeParse(manifest).success).toBe(false)
 	})
 
-	it("accepts a standard version newer than this implementation", () => {
-		// The checker must be able to say "newer than me" rather than
-		// "malformed" — which is what makes the wire format changeable without
-		// invalidating troves already published.
-		const manifest = { ...validManifest(), standard: 2 }
+	// Only the current version CONFORMS — there is no backward compatibility.
+	// But the schema is not where that verdict belongs: a manifest written to
+	// another version is out of date or ahead of us, not corrupt, and a reader
+	// needs to be told which. So both directions parse, and the checker names
+	// the version problem.
+	it.each([
+		["newer than this implementation", CURRENT_STANDARD + 1],
+		["older than this implementation", CURRENT_STANDARD - 1],
+	])("parses a standard version %s", (_label, standard) => {
+		const manifest = { ...validManifest(), standard }
 		expect(manifestSchema.safeParse(manifest).success).toBe(true)
 	})
 

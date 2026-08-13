@@ -2,7 +2,7 @@
 
 A **trove** is a folder of static files published at a URL. Any agent can read one, verify it, and remix it into a new trove of its own. Nothing is installed and nothing is negotiated — everything needed to understand a trove is served at its URL.
 
-This describes standard version 2. Each trove's `trove.json` states the version it follows, and a trove declaring an older one is not wrong — read it against the version it names.
+This describes standard version 2 — the current version, and the only one. Each trove's `trove.json` states the version it follows; a trove naming any other version does not conform to this document, and nothing here tells you what is in it.
 
 ## Reading a trove
 

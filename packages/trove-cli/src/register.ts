@@ -92,18 +92,22 @@ export async function register(options: {
 
 	const record = await registerTrove(registryUrl, parsed.data.id, hostUrl)
 
+	// Derived from the registry that was actually written to, so the URL printed
+	// always names the record this call just created.
+	const recordUrl = recordUrlForId(registryUrl, parsed.data.id)
+
 	// The trove's URL is repeated here on purpose: it is the thing to share, it
 	// was printed by a different command, and this is the moment a creator is
 	// looking for something to hand over.
 	console.log(`trove: ${hostUrl}`)
-	console.log(`record: ${recordUrlForId(parsed.data.id)}`)
+	console.log(`record: ${recordUrl}`)
 	console.log(`checks: ${summarizeReport(record.contractCheck)}`)
 	// A trove that fails its checks is still RECORDED (§7: identity gates
 	// registration, conformance does not) — but it must never read as success.
 	// The stored verdict is the entire signal, and it is published verbatim.
 	if (!record.contractCheck.ok) {
 		console.error(
-			`this trove FAILED its contract checks. It is registered — the registry publishes this verdict at ${recordUrlForId(parsed.data.id)} — but it does not conform:\n${describeFailures(record.contractCheck)}`,
+			`this trove FAILED its contract checks. It is registered — the registry publishes this verdict at ${recordUrl} — but it does not conform:\n${describeFailures(record.contractCheck)}`,
 		)
 		process.exitCode = 1
 	}

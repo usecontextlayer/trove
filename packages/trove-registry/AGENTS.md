@@ -12,17 +12,17 @@ pnpm run deploy        # from this directory
 
 The script builds `trove.js` into `public/` first, then runs `wrangler deploy`. Remote migrations are separate: `npx tsx manage.ts latest --remote`.
 
-## Deploy the registry BEFORE publishing the CLI to npm
+## The registry and the CLI must move together — and the Worker ships first
 
-**Whenever a change moves the standard version, the manifest shape, or what the checker accepts, the Worker ships first and npm ships second.** Not the reverse, and not simultaneously.
+**Whenever a change moves the standard version, the manifest shape, the mandated block's text, or what the checker accepts, the two releases are one release.** There is no version of this that a creator can sit safely in the middle of.
 
-The asymmetry is the whole reason. A registry running *newer* code still accepts troves from *older* CLIs — that is exactly what the standard's version lever is for, and it is tested. A registry running *older* code rejects troves from a newer CLI outright, because the old schema requires fields the new CLI no longer emits.
+**Do not look for a compatible ordering — there is not one.** The registry accepts exactly the current standard and nothing else (owner-ruled 2026-08-13: zero backward compatibility, no retired templates kept alive). So a CLI one version behind is refused, and a CLI one version ahead is refused; the skew breaks in whichever direction it exists. Any doc claiming a newer registry still accepts older CLIs is describing machinery that was deliberately deleted.
 
-This happened, on 2026-08-12: `@usecontextlayer/trove@0.4.0` went to npm while the Worker was still a commit behind, and for 43 minutes the released CLI could not register anything. **Established by inspection, not observed** — no `publish` ran in that window, so no 422 was ever actually issued. What makes the conclusion certain is the deployed commit's own schema: `manifestSchema` required `canonical`, which 0.4.0 no longer emits, so `checkTrove` returns a null manifest and `POST /register` answers **422** before any row is written. `register` has no override, and republishing mints a fresh id and a fresh 60-minute clock, so a creator's only recourse would have been to watch their deployment expire.
+**The Worker ships first because a Worker deploy is reversible and an npm publish is not.** That is the whole tiebreak. `wrangler rollback` puts the old registry back in seconds; a published version number is spent forever, and the CLI that reads it is on strangers' machines. Ship the undoable one second.
 
-Worse, the refusal *accuses the creator*: with the manifest rejected the old checker falls back to standard 1, compares the new block against the old template, and reports the mandated block as tampered with. Nothing would have said "your CLI is newer than the registry."
+This ordering was learned the expensive way, on 2026-08-12: `@usecontextlayer/trove@0.4.0` went to npm while the Worker was still a commit behind, and for 43 minutes the released CLI could not register anything. **Established by inspection, not observed** — no `publish` ran in that window, so no 422 was ever actually issued. What makes the conclusion certain is the deployed commit's own schema: `manifestSchema` required `canonical`, which 0.4.0 no longer emits, so `checkTrove` returns a null manifest and `POST /register` answers **422** before any row is written. `register` has no override, and republishing mints a fresh id and a fresh 60-minute clock, so a creator's only recourse would have been to watch their deployment expire.
 
-The safe direction was tested rather than assumed — **once, by a reviewer, not by CI**: a hand-built `standard: 1` trove passes all seven checks against the current checker over real HTTP. So deploying first would have kept both CLI generations working throughout. That test is not in the repo; `check.test.ts` still has no `standard: 1` fixture, so nothing automated defends the claim this rule rests on.
+**The refusal used to accuse the creator**, which is what made the skew expensive rather than merely broken: the old checker fell back to comparing the new block against an old template and reported the mandated block as tampered with, sending a creator to edit bytes that were correct. A version mismatch now reports itself as one — `standard N is retired` or `newer than this checker` — on both the manifest and the mandated-block checks. The window still breaks; it no longer lies about whose fault it is.
 
 **There is no CI gate for this.** The release workflow publishes from a tag and knows nothing about what is deployed. The ordering is a human step, which is why it is written here.
 

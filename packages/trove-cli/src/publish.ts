@@ -57,6 +57,35 @@ async function verifyDeployed(hostUrl: string, id: string): Promise<void> {
 	)
 }
 
+/**
+ * The claim expiry as a WALL CLOCK, which is what a creator can act on — a bare
+ * duration makes them do arithmetic against a clock they cannot see from here.
+ * Measured cost of getting this wrong: a naive agent read the docs' promise of
+ * a "deadline", found a duration, converted it by hand with a `date` invocation
+ * whose adjustment flag did nothing, and published the unchanged echo as a
+ * measured expiry time — in bold, twice. The tool holds the only clock that
+ * knows when the deploy actually happened, so it is the tool that must do this.
+ *
+ * The duration stays alongside it: it is the part that says how much room is
+ * left, and the timestamp is the part that says when. `now` is a parameter
+ * because the moment is the caller's to supply, which also makes the arithmetic
+ * checkable without one.
+ */
+export function claimDeadlineLine(deadlineMinutes: number, now: Date): string {
+	const deadline = new Date(now.getTime() + deadlineMinutes * 60_000)
+	// Explicit components, not dateStyle/timeStyle: those cannot be combined with
+	// timeZoneName (ECMA-402 rejects the pair outright), and the zone is the part
+	// that makes a wall clock unambiguous to whoever reads it.
+	const when = deadline.toLocaleString(undefined, {
+		day: "numeric",
+		hour: "numeric",
+		minute: "2-digit",
+		month: "short",
+		timeZoneName: "short",
+	})
+	return `unclaimed, this trove is deleted at ${when} — ${deadlineMinutes} minutes from now`
+}
+
 // Publishing takes no registryUrl: with registration split out, this command
 // makes no request to the registry at all.
 export async function publish(options: { folder: string }): Promise<void> {
@@ -125,9 +154,7 @@ export async function publish(options: { folder: string }): Promise<void> {
 		console.log(`trove: ${deployed.hostUrl}`)
 		if (deployed.claim !== null) {
 			console.log(`claim: ${deployed.claim.url}`)
-			console.log(
-				`unclaimed, this trove is deleted in ${deployed.claim.deadlineMinutes} minutes`,
-			)
+			console.log(claimDeadlineLine(deployed.claim.deadlineMinutes, new Date()))
 		}
 		// The trove is readable already; what is missing is the id binding and an
 		// independent verdict. Naming the exact command AND what it buys is what

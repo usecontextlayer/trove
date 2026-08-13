@@ -465,4 +465,26 @@ describe("checkTrove", () => {
 			"newer than this checker",
 		)
 	})
+
+	it("reports an older standard as retired, not as a text mismatch", async () => {
+		// There is no backward compatibility: only the current version conforms.
+		// What matters is WHICH answer a creator gets — a retired version is a
+		// version problem, and reporting it as "your text does not match" would
+		// send them to edit bytes that were correct for the version they named.
+		const id = mintId()
+		const responses = conformantTrove(id)
+		const manifestEntry = responses[MANIFEST_PATH]
+		if (!manifestEntry) throw new Error("fixture missing manifest")
+		const manifest = JSON.parse(manifestEntry.body) as Record<string, unknown>
+		manifest.standard = CURRENT_STANDARD - 1
+		manifestEntry.body = JSON.stringify(manifest)
+		const { report } = await checkTrove({ read: memoryReader(responses) })
+		// It PARSED — the manifest is not malformed, it is out of date.
+		const detail = report.checks.find((check) => check.name === "manifest")?.detail
+		expect(detail).toContain("retired")
+		expect(detail).not.toContain("schema validation")
+		expect(
+			report.checks.find((check) => check.name === "mandated-block")?.detail,
+		).toContain("retired")
+	})
 })

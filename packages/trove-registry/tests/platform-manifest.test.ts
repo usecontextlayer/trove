@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { readFileSync } from "node:fs"
 import * as path from "node:path"
-import { TROVE_ORIGIN } from "@usecontextlayer/trove-standard"
+import { CURRENT_STANDARD, TROVE_ORIGIN } from "@usecontextlayer/trove-standard"
 import { describe, expect, it } from "vitest"
 
 // The platform's own trove.json is committed, not built (deploys/builds stay
@@ -27,7 +27,14 @@ describe("the platform's own trove.json", () => {
 		// NOTE for consumers: nothing may treat this CLAIM as proof of being the
 		// platform — trove.json can be faked; platform detection is by location.
 		expect(manifest.id).toBe(TROVE_ORIGIN)
-		expect(manifest.standard).toBe(1)
+	})
+
+	it("declares the version the implementation actually authors", () => {
+		// Committed, so this can go stale exactly like a digest can — and it did:
+		// it said 1 while the manual served beside it said "version 2" and told
+		// readers to trust this field, on the one worked example a stranger can
+		// fetch.
+		expect(manifest.standard).toBe(CURRENT_STANDARD)
 	})
 
 	it("lists the four stable authored files, and only those", () => {

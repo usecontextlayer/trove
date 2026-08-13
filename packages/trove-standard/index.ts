@@ -6,7 +6,6 @@ export {
 	matchesMandatedDiv,
 	renderMandatedBlock,
 } from "@/lib/block"
-export { recordUrlForId, TROVE_ORIGIN } from "@/lib/canonical"
 export {
 	type CheckTroveResult,
 	type ContractCheck,
@@ -36,3 +35,4 @@ export {
 	type TroveManifest,
 } from "@/lib/manifest"
 export { AGENTS_MD_PATH, INDEX_PATH, MANIFEST_PATH } from "@/lib/paths"
+export { recordUrlForId, TROVE_ORIGIN } from "@/lib/registry"

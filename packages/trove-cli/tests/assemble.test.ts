@@ -181,7 +181,11 @@ describe("assembleTrove", () => {
 
 	it("records lineage from a remix marker", () => {
 		const id = mintId()
-		const parent = "https://trove.usecontextlayer.com/a/0123456789abcdefghjkmnpq"
+		// The parent's OWN URL — a trove has one address and this is it. The
+		// fixture used to carry a registry lookup URL, the shape both URL
+		// boundaries were rewritten to reject; a fixture left in the old shape is
+		// how a retired model gets taught back to whoever reads the suite next.
+		const parent = "https://trove-0123456f.plain-sunset.workers.dev"
 		const parentDigest = `sha256:${"a".repeat(64)}`
 		const manifest = assembleTrove({
 			destDir: destDir(),

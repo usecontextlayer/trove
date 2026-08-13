@@ -11,9 +11,12 @@ import type { Trove } from "@/database"
 import { createRegistryDb } from "@/database"
 
 // The registry — the only server Trove operates. Its claim: "this URL conforms
-// to the trove standard." Three routes plus a redirect subtree; everything
-// else this domain serves (/trove.js, /AGENTS.md, /skills/**) is a static asset
-// that never invokes this Worker (see run_worker_first in wrangler.jsonc).
+// to the trove standard." It registers a trove, serves its record, and resolves
+// an id to a host; there is deliberately NO subtree beneath /a/<id>, and that
+// absence is load-bearing rather than incidental (the reasoning is on
+// redirectToHost, and wrangler.jsonc depends on the 404 it produces).
+// Everything else this domain serves (/trove.js, /AGENTS.md, /skills/**) is a
+// static asset that never invokes this Worker (see run_worker_first).
 
 const registerBodySchema = z.object({
 	hostUrl: z.url(),

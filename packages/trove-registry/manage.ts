@@ -2,7 +2,7 @@ import { execSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { globSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import * as path from "node:path"
-import { TROVE_ORIGIN } from "@usecontextlayer/trove-standard"
+import { CURRENT_STANDARD, TROVE_ORIGIN } from "@usecontextlayer/trove-standard"
 import { Command } from "commander"
 
 // The registry's schema-ops CLI, mirroring the ContextLayer `manage` shape
@@ -99,7 +99,11 @@ function manifest(): void {
 		files,
 		id: TROVE_ORIGIN,
 		note: "Trove itself is a trove in spirit, not in exactness: its id is its URL, /trove.js is elided (its digest changes with each build), and /a/* and /register are routes, not files.",
-		standard: 1,
+		// Taken from the implementation, never typed in. This was pinned at a
+		// literal 1 while the manual served beside it said "version 2" and told
+		// readers to trust this field — on the one worked example a stranger can
+		// fetch. A number a human retypes is a number that drifts.
+		standard: CURRENT_STANDARD,
 	}
 	writeFileSync(
 		path.join(publicDir, "trove.json"),

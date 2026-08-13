@@ -1,7 +1,6 @@
 import {
 	CURRENT_STANDARD,
 	MANDATED_SCRIPT_SRC,
-	mandatedDivTemplate,
 	matchesMandatedDiv,
 	matchesMandatedScript,
 } from "@/lib/block"
@@ -276,11 +275,21 @@ export async function checkTrove(options: {
 		}
 	}
 
-	// The trove states its own standard version; the block is compared against
-	// that version's template. An unknown version is reported as newer rather
-	// than as a malformed manifest.
+	// The trove states its own standard version, and there is exactly one this
+	// implementation accepts — so this is a two-sided comparison rather than a
+	// template lookup. Newer means written to a spec this checker does not have;
+	// older means written to a retired one. Both are reported as version
+	// problems: neither is a malformed manifest (§3 requires an unknown version
+	// to parse), and neither should reach the block comparison, where it would
+	// surface as "your text does not match" and send a creator to edit bytes
+	// that were correct for the version they named.
 	const standard = manifest?.standard ?? CURRENT_STANDARD
-	const knownStandard = mandatedDivTemplate(standard) !== null
+	let standardDetail: string | undefined
+	if (standard > CURRENT_STANDARD) {
+		standardDetail = `standard ${standard} is newer than this checker (${CURRENT_STANDARD})`
+	} else if (standard < CURRENT_STANDARD) {
+		standardDetail = `standard ${standard} is retired — this checker implements only standard ${CURRENT_STANDARD}`
+	}
 
 	let indexElements: HtmlElement[] | null = null
 	let mandatedDiv: HtmlElement | null = null
@@ -322,9 +331,9 @@ export async function checkTrove(options: {
 				blockDetail = "the mandated script tag is missing or modified"
 			} else if (!matchesMandatedScript(script.source.markup)) {
 				blockDetail = "the mandated script tag is missing or modified"
-			} else if (!knownStandard) {
-				blockDetail = `not checked: standard ${standard} is newer than this checker (${CURRENT_STANDARD})`
-			} else if (!matchesMandatedDiv(mandatedDiv.source.markup, blockId, standard)) {
+			} else if (standardDetail !== undefined) {
+				blockDetail = `not checked: ${standardDetail}`
+			} else if (!matchesMandatedDiv(mandatedDiv.source.markup, blockId)) {
 				blockDetail =
 					"the mandated div's text does not match the template (substitute, normalize, compare)"
 			}
@@ -341,8 +350,8 @@ export async function checkTrove(options: {
 	// manifest no longer states one — a trove is served at exactly one address
 	// and the reader already holds it.
 	if (manifest !== null && manifestDetail === undefined) {
-		if (!knownStandard) {
-			manifestDetail = `standard ${manifest.standard} is newer than this checker (${CURRENT_STANDARD})`
+		if (standardDetail !== undefined) {
+			manifestDetail = standardDetail
 		} else if (expectedId !== undefined && manifest.id !== expectedId) {
 			manifestDetail = `manifest id ${manifest.id} does not match the expected id ${expectedId}`
 		} else if (blockId !== null && manifest.id !== blockId) {

@@ -16,6 +16,12 @@ export const TROVE_ORIGIN = "https://trove.usecontextlayer.com"
  * Where the registry publishes what it observed about a trove — its stored
  * contract-check verdict, its lineage, and the host it is bound to.
  *
+ * The registry is a PARAMETER here, not the constant above. Reading it from
+ * TROVE_ORIGIN instead meant a caller pointed at another registry wrote its
+ * record to that one and then printed a production URL for it — a URL naming a
+ * record that does not exist there, in the same breath as the write that
+ * created it elsewhere. Only whoever performed the write knows where it landed.
+ *
  * This replaced `canonicalUrlForId`, and the rename is the change. The old
  * function returned a trove's "canonical URL": a second identity we minted and
  * served, which every document told people to share, and which every read
@@ -28,7 +34,11 @@ export const TROVE_ORIGIN = "https://trove.usecontextlayer.com"
  * A record is not an identity. It is one party's observation about a trove, it
  * is optional to consult, and nothing breaks when it is absent.
  */
-export function recordUrlForId(id: string): string {
+export function recordUrlForId(registryUrl: string, id: string): string {
 	assertWellFormedId(id)
-	return `${TROVE_ORIGIN}/a/${id}.json`
+	// The URL object composes the string. Building one by concatenation is what
+	// turned a subpath into a protocol-relative authority once already, and the
+	// rule that came out of it binds everywhere a URL is assembled, not just
+	// where it was broken.
+	return new URL(`/a/${id}.json`, registryUrl).href
 }

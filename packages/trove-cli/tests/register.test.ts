@@ -3,7 +3,7 @@ import * as http from "node:http"
 import * as os from "node:os"
 import * as path from "node:path"
 import type { ContractCheckReport } from "@usecontextlayer/trove-standard"
-import { mintId, recordUrlForId } from "@usecontextlayer/trove-standard"
+import { CURRENT_STANDARD, mintId, recordUrlForId } from "@usecontextlayer/trove-standard"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { assembleTrove } from "@/src/assemble"
 import { parseHostUrl, register } from "@/src/register"
@@ -53,7 +53,7 @@ function recordFor(report: ContractCheckReport): unknown {
 		id: troveId,
 		parent: null,
 		registeredAt: "2026-08-11T00:00:00.000Z",
-		standard: 1,
+		standard: CURRENT_STANDARD,
 	}
 }
 
@@ -145,7 +145,12 @@ describe("register", () => {
 		expect(lastRegisterBody).toEqual({ hostUrl, id: troveId })
 		const printed = log.mock.calls.map((call) => String(call[0])).join("\n")
 		expect(printed).toContain(`trove: ${hostUrl}`)
-		expect(printed).toContain(`record: ${recordUrlForId(troveId)}`)
+		// The record URL must name the registry this call actually wrote to. The
+		// previous assertion asked for the built-in production origin — the same
+		// value the implementation hard-wired — so it passed while the URL printed
+		// to the operator named a registry that had never seen this trove.
+		expect(printed).toContain(`record: ${recordUrlForId(hostUrl, troveId)}`)
+		expect(printed).not.toContain("https://trove.usecontextlayer.com")
 		expect(process.exitCode).toBeFalsy()
 	})
 

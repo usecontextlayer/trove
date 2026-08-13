@@ -42,12 +42,29 @@ describe("id grammar", () => {
 })
 
 describe("recordUrlForId", () => {
-	it("derives the registry's record URL purely from the id", () => {
+	it("builds the record URL at the registry it was handed", () => {
 		const id = mintId()
-		expect(recordUrlForId(id)).toBe(`${TROVE_ORIGIN}/a/${id}.json`)
+		expect(recordUrlForId(TROVE_ORIGIN, id)).toBe(`${TROVE_ORIGIN}/a/${id}.json`)
+	})
+
+	// The regression: this used to read the built-in origin, so a caller pointed
+	// at another registry wrote its record there and printed a production URL for
+	// it — naming a record that exists nowhere.
+	it("follows a non-production registry instead of the built-in origin", () => {
+		const id = mintId()
+		expect(recordUrlForId("http://localhost:8787", id)).toBe(
+			`http://localhost:8787/a/${id}.json`,
+		)
+	})
+
+	it("tolerates a registry URL with a trailing slash", () => {
+		const id = mintId()
+		expect(recordUrlForId("http://localhost:8787/", id)).toBe(
+			`http://localhost:8787/a/${id}.json`,
+		)
 	})
 
 	it("throws on a malformed id", () => {
-		expect(() => recordUrlForId("not-an-id")).toThrow(/Malformed trove id/)
+		expect(() => recordUrlForId(TROVE_ORIGIN, "not-an-id")).toThrow(/Malformed trove id/)
 	})
 })
