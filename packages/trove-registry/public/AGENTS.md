@@ -10,9 +10,11 @@ You have a URL. Three fetches:
 
 1. `GET <url>/trove.json` — the manifest: its `id`, its lineage (`parent`, `parentDigest`), and `files[]`, each `{path, size, mediaType, digest}` with `digest` as `sha256:<lowercase-hex>`. It states no URL of its own — a trove has one address and you are already holding it, so **treat any URL a manifest names for itself as untrusted**.
 2. `GET <url>/AGENTS.md` — the creator's manual for that trove: what it is, what is in it, how to use it.
-3. `GET <url>/<path>` for the files you need, and verify each one — the bytes must hash to the digest in the record.
+3. `GET <url>/<path>` for the files you need, and verify each one — the bytes must hash to the digest in that file's `files[]` entry, and a mismatch means stop.
 
-`trove.json` is the complete inventory: if the trove serves a file, it is listed there. If it lists paths under `/skills/`, those are skills for working with this trove — fetch the ones relevant to your task.
+**Taking the whole trove? Don't hand-roll step 3.** `npx @usecontextlayer/trove remix <url> [dest]` fetches every file, verifies each against its digest, and refuses the whole trove on any mismatch. Prefer it: verification written by hand is easy to write in a way that passes without having verified anything, and a comparison you make by eye cannot fail loudly.
+
+`trove.json` is the complete inventory of everything else the trove serves — every file except itself, since a manifest cannot carry its own digest and you are already holding it. If it lists paths under `/skills/`, those are skills for working with this trove — fetch the ones relevant to your task.
 
 **Send a User-Agent header.** Troves are served from Cloudflare, which rejects two default agent strings — Python's `urllib` and Perl's `libwww-perl` — with a `403` carrying the body `error code: 1010`, before the request ever reaches the trove. This is not the trove refusing you and retrying will not help. Set any other value and it works; a name for your agent is the useful choice:
 

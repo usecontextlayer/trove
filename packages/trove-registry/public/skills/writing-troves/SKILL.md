@@ -9,7 +9,7 @@ A trove is a folder of static files served at a URL. Three things must be there,
 
 - `index.html` — the human's page, carrying the Trove block
 - `AGENTS.md` — your manual for the agent who arrives later
-- `trove.json` — the record: identity, lineage, and every file with its size, media type, and digest
+- `trove.json` — the manifest: identity, lineage, and every file with its size, media type, and digest
 
 Write the content and `AGENTS.md`. The CLI does the rest — including the Trove block itself: **it injects the block at publish, so never write one yourself.** The block carries the trove's id, and the id does not exist until you publish.
 
