@@ -12,7 +12,7 @@ You have a URL. Three fetches:
 2. `GET <url>/AGENTS.md` — the creator's manual for that trove: what it is, what is in it, how to use it.
 3. `GET <url>/<path>` for the files you need, and verify each one — the bytes must hash to the digest in that file's `files[]` entry, and a mismatch means stop.
 
-**Taking the whole trove? Don't hand-roll step 3.** `npx @usecontextlayer/trove remix <url> [dest]` fetches every file, verifies each against its digest, and refuses the whole trove on any mismatch. Prefer it: verification written by hand is easy to write in a way that passes without having verified anything, and a comparison you make by eye cannot fail loudly.
+**Don't hand-roll step 3 — run `npx @usecontextlayer/trove verify <url>`.** It hashes every file against the manifest *and* runs the six checks you cannot hand-roll, prints all seven verdicts, and exits non-zero if the trove does not conform. It only reads. Prefer it: verification written by hand is easy to write in a way that passes without having verified anything, and a comparison you make by eye cannot fail loudly. The check you most want is **anti-cloaking** — text addressed to your agent that a human reading the page cannot see is the one risk no amount of hashing will find.
 
 `trove.json` is the complete inventory of everything else the trove serves — every file except itself, since a manifest cannot carry its own digest and you are already holding it. If it lists paths under `/skills/`, those are skills for working with this trove — fetch the ones relevant to your task.
 
