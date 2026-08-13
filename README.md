@@ -5,6 +5,7 @@ A **trove** is a set of static files published at a URL. Any agent can fetch it,
 **Trove** (capitalised) is the platform that records and certifies those URLs: <https://trove.usecontextlayer.com>. A trove is served from its creator's own account, so reading one never involves Trove at all.
 
 ```sh
+npx @usecontextlayer/trove verify <trove-url>       # check someone else's, read-only
 npx @usecontextlayer/trove publish ./my-folder     # prints the trove's URL
 npx @usecontextlayer/trove register <trove-url>     # claims the id, publishes a verdict
 npx @usecontextlayer/trove remix <trove-url>        # verified fetch of someone else's
