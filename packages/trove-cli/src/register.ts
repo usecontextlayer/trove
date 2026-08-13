@@ -5,6 +5,7 @@ import {
 } from "@usecontextlayer/trove-standard"
 import { registerTrove } from "@/src/registry"
 import { describeFailures, summarizeReport } from "@/src/report"
+import { fetchWhileSettling, type SettlingOptions } from "@/src/wrangler"
 
 // Registering (§8) — a separate command from publishing, and neither does the
 // other. Publishing gets the bytes live and the trove is readable from that
@@ -63,6 +64,8 @@ export function parseHostUrl(registryUrl: string, hostUrl: string): string {
 export async function register(options: {
 	hostUrl: string
 	registryUrl: string
+	/** Propagation polling. Defaults match publish's; a caller on a slower host can widen them. */
+	settling?: SettlingOptions
 }): Promise<void> {
 	const { hostUrl, registryUrl } = options
 
@@ -70,10 +73,26 @@ export async function register(options: {
 	// rather than carried by the caller.
 	const manifestUrl = new URL(hostUrl)
 	manifestUrl.pathname = MANIFEST_PATH
-	const response = await fetch(manifestUrl)
-	if (!response.ok) {
+
+	// Wait the same window `publish` waits. Propagation is per-asset and not
+	// atomic, and a fresh preview flaps rather than simply coming up, so this
+	// path can 404 seconds after the root served — measured, `publish` polled
+	// through exactly that window and succeeded while `register`, run SIX
+	// SECONDS later, answered "there is no trove to register … Publish it
+	// first."
+	//
+	// The old message is the reason this is worth fixing rather than rewording.
+	// Republishing mints a fresh id, a fresh host and a fresh 60-minute clock
+	// and orphans the deployment that is already live, so the advice was not
+	// merely wrong about the cause — it recommended the one destructive action
+	// available. The agent that met it only avoided that by probing the URL by
+	// hand and disbelieving the tool.
+	let response: Response
+	try {
+		response = await fetchWhileSettling(manifestUrl, options.settling)
+	} catch (error) {
 		throw new Error(
-			`${manifestUrl.href} answered ${response.status} — there is no trove to register at ${hostUrl}. Publish it first.`,
+			`nothing is serving a trove at ${hostUrl}. If you just published it, propagation may still be settling — wait a minute and run this again; do NOT republish, which would mint a new id and orphan the trove that is already live. If you have not published it yet, publish it first.\n${String(error)}`,
 		)
 	}
 	// safeParse, not parse: a bare ZodError reaches the caller as a JSON dump of

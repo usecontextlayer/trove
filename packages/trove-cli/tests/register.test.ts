@@ -3,7 +3,12 @@ import * as http from "node:http"
 import * as os from "node:os"
 import * as path from "node:path"
 import type { ContractCheckReport } from "@usecontextlayer/trove-standard"
-import { CURRENT_STANDARD, mintId, recordUrlForId } from "@usecontextlayer/trove-standard"
+import {
+	CURRENT_STANDARD,
+	MANIFEST_PATH,
+	mintId,
+	recordUrlForId,
+} from "@usecontextlayer/trove-standard"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { assembleTrove } from "@/src/assemble"
 import { parseHostUrl, register } from "@/src/register"
@@ -199,7 +204,53 @@ describe("register", () => {
 		)
 	})
 
-	it("fails loudly when nothing is deployed at the host", async () => {
+	it("waits out a manifest that is still propagating instead of blaming the creator", async () => {
+		// Measured: `publish` polled through this window and succeeded, and
+		// `register` — six seconds later — said "there is no trove to register …
+		// Publish it first." Republishing mints a new id and orphans the live
+		// trove, so the message recommended the destructive action.
+		let attempts = 0
+		const flapping = http.createServer((request, response) => {
+			if (request.url === MANIFEST_PATH) {
+				attempts += 1
+				// 404, 404, then serve — the shape of a settling preview.
+				if (attempts < 3) {
+					response.writeHead(404).end()
+					return
+				}
+			}
+			if (request.method === "POST") {
+				response
+					.writeHead(201, { "content-type": "application/json" })
+					.end(JSON.stringify(recordFor(PASSING)))
+				return
+			}
+			const file = request.url === "/" ? "index.html" : (request.url ?? "").slice(1)
+			try {
+				response.writeHead(200).end(readFileSync(path.join(assembledDir, file)))
+			} catch {
+				response.writeHead(404).end()
+			}
+		})
+		await new Promise<void>((resolve) => flapping.listen(0, "127.0.0.1", resolve))
+		const address = flapping.address()
+		if (address === null || typeof address === "string") {
+			throw new Error("server did not bind a port")
+		}
+		vi.spyOn(console, "log").mockImplementation(() => {})
+		const flappingUrl = `http://127.0.0.1:${address.port}`
+
+		await register({
+			hostUrl: flappingUrl,
+			registryUrl: flappingUrl,
+			settling: { pollMs: 5, timeoutMs: 5_000 },
+		})
+
+		expect(attempts).toBe(3)
+		flapping.close()
+	})
+
+	it("fails loudly when nothing is ever served, and never advises republishing", async () => {
 		const empty = http.createServer((_request, response) => {
 			response.writeHead(404).end()
 		})
@@ -209,8 +260,21 @@ describe("register", () => {
 			throw new Error("server did not bind a port")
 		}
 		await expect(
-			register({ hostUrl: `http://127.0.0.1:${address.port}`, registryUrl }),
-		).rejects.toThrow(/no trove to register/)
+			register({
+				hostUrl: `http://127.0.0.1:${address.port}`,
+				registryUrl,
+				settling: { pollMs: 5, timeoutMs: 40 },
+			}),
+		).rejects.toThrow(/nothing is serving a trove/)
+		// The old message said "Publish it first" unconditionally, which after a
+		// successful publish is advice to burn an id.
+		await expect(
+			register({
+				hostUrl: `http://127.0.0.1:${address.port}`,
+				registryUrl,
+				settling: { pollMs: 5, timeoutMs: 40 },
+			}),
+		).rejects.toThrow(/do NOT republish/)
 		empty.close()
 	})
 })
