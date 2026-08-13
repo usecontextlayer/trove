@@ -32,6 +32,58 @@ export function describeChecks(report: ContractCheckReport): string {
 		.join("\n")
 }
 
+const RULE = "═".repeat(74)
+
+/**
+ * The banner a remixer sees when the parent does not conform.
+ *
+ * Remixing a non-conformant trove is ALLOWED — forking something slightly
+ * broken in order to fix it is a real and legitimate thing to want, and there
+ * is no override flag to pass because there is nothing to override. What must
+ * not happen is that it goes by quietly: the failure is now the remixer's, it
+ * is already in their copy, and the next `publish` fails the same way.
+ *
+ * The digest half is called out explicitly because the two are constantly
+ * confused. Every file matching its digest and the trove conforming are
+ * unrelated claims: bytes can be exactly what the manifest promised while the
+ * page hides text from the human reading it.
+ */
+export function describeNonConformance(
+	troveUrl: string,
+	report: ContractCheckReport,
+): string {
+	const cloaked = report.checks.some(
+		(check) => check.name === "anti-cloaking" && check.status === "failed",
+	)
+	return [
+		"",
+		RULE,
+		"  !!  THIS TROVE DOES NOT CONFORM TO THE TROVE STANDARD  !!",
+		RULE,
+		"",
+		describeFailures(report),
+		"",
+		"  Remixed anyway, because that is a thing you may legitimately want.",
+		"  What you have taken on:",
+		"",
+		"  - Every file DID match its digest. That is a separate claim from the",
+		"    one above, and it is not the one that failed.",
+		"  - Whatever failed is in your copy now. Publishing it fails the same",
+		"    checks, in the same way.",
+		...(cloaked
+			? [
+					"  - anti-cloaking failed. That means text addressed to agents that a",
+					"    human reading the page CANNOT SEE. Read it before you republish",
+					"    it — you would be passing it on under your own name.",
+				]
+			: []),
+		"",
+		`  Full report:  npx @usecontextlayer/trove verify ${troveUrl}`,
+		RULE,
+		"",
+	].join("\n")
+}
+
 /** The failed checks, one per line, with the reason each gave. */
 export function describeFailures(report: ContractCheckReport): string {
 	return report.checks

@@ -1,7 +1,13 @@
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import * as path from "node:path"
-import { manifestSchema, parseElements } from "@usecontextlayer/trove-standard"
+import {
+	type ContractCheckReport,
+	checkTrove,
+	httpReader,
+	manifestSchema,
+	parseElements,
+} from "@usecontextlayer/trove-standard"
 import { REMIX_MARKER_FILE } from "@/src/assemble"
 
 // Remixing (§9): fetch is where lineage is captured and inherited identity is
@@ -81,8 +87,28 @@ function clearInheritedIdentity(html: string): string {
 export async function remixTrove(options: {
 	destDir?: string
 	troveUrl: string
-}): Promise<{ destDir: string; fileCount: number }> {
+}): Promise<{ destDir: string; fileCount: number; report: ContractCheckReport }> {
 	const { troveUrl } = options
+
+	// §6's THIRD POSITION, which until now did not exist: the same checker the
+	// creator runs before publishing and the registry runs at registration, run
+	// here by the agent about to trust the bytes. "One checker, three positions"
+	// was a claim the docs made and this function did not keep.
+	//
+	// verifyFiles is OFF because this function verifies every file itself, below,
+	// as it writes it — running check 4 here as well would fetch the whole trove
+	// twice to answer the same question. Checks 1, 2, 3, 5 and 7 are the ones a
+	// remixer could not otherwise get, and anti-cloaking is the one that matters
+	// most: it is the only check that looks for text aimed at an agent that the
+	// human cannot see.
+	//
+	// The verdict does NOT gate the remix (owner-ruled): forking something
+	// slightly broken in order to fix it is legitimate, so the report is returned
+	// for the caller to shout about rather than thrown.
+	const { report } = await checkTrove({
+		read: httpReader(troveUrl),
+		verifyFiles: false,
+	})
 
 	// Hash the manifest bytes exactly as fetched — this pins WHICH version was
 	// remixed, since troves are mutable and redeploy in place.
@@ -153,5 +179,5 @@ export async function remixTrove(options: {
 		`${JSON.stringify(marker, null, "\t")}\n`,
 	)
 
-	return { destDir, fileCount: manifest.files.length }
+	return { destDir, fileCount: manifest.files.length, report }
 }

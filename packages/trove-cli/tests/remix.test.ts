@@ -4,9 +4,11 @@ import * as http from "node:http"
 import * as os from "node:os"
 import * as path from "node:path"
 import { manifestSchema, mintId } from "@usecontextlayer/trove-standard"
+import mime from "mime"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { assembleTrove } from "@/src/assemble"
 import { parseTroveUrl, readRemixMarker, remixTrove } from "@/src/remix"
+import { describeNonConformance } from "@/src/report"
 
 // The far side of remix is OUR OWN standard: a local server serving a REAL
 // assembled trove (built by assembleTrove, digests and all) at its own root —
@@ -17,6 +19,8 @@ const troveId = mintId()
 let server: http.Server
 let troveUrl: string
 let assembledDir: string
+/** Flipped by the non-conformance test: dropping it fails check 5 without touching a single byte, so digests still match and the remix still completes. */
+let noindex = true
 
 beforeAll(async () => {
 	assembledDir = path.join(mkdtempSync(path.join(os.tmpdir(), "trove-remix-src-")), "a")
@@ -26,11 +30,22 @@ beforeAll(async () => {
 		sourceDir: makeSource(),
 	})
 
+	// Serves the assembled trove the way the real host does — correct media type
+	// per extension and X-Robots-Tag on every response. remix now runs the §6.1
+	// checker against this, so a server that answered without content types would
+	// fail checks 1, 2 and 3 and put every test on the unhappy path.
 	server = http.createServer((request, response) => {
 		const trovePath = request.url || "/"
 		const file = trovePath === "/" ? "index.html" : trovePath.slice(1)
 		try {
-			response.writeHead(200).end(readFileSync(path.join(assembledDir, file)))
+			const body = readFileSync(path.join(assembledDir, file))
+			const headers: Record<string, string> = {
+				"content-type": mime.getType(file) ?? "application/octet-stream",
+			}
+			if (noindex) {
+				headers["x-robots-tag"] = "noindex"
+			}
+			response.writeHead(200, headers).end(body)
 		} catch {
 			response.writeHead(404).end()
 		}
@@ -99,6 +114,49 @@ describe("parseTroveUrl", () => {
 })
 
 describe("remixTrove", () => {
+	it("runs the standard's checker over the parent — the third position", async () => {
+		// "One checker, three positions" was asserted in the standard, the README
+		// and the repo's own AGENTS.md while remix called it in none of them.
+		const destDir = path.join(
+			mkdtempSync(path.join(os.tmpdir(), "trove-remix-chk-")),
+			"r",
+		)
+		const { report } = await remixTrove({ destDir, troveUrl })
+		expect(report.ok).toBe(true)
+		// files/caps are not-checked HERE on purpose: remix verifies every file's
+		// digest itself as it writes it, so running check 4 too would fetch the
+		// whole trove twice to answer the same question.
+		expect(
+			report.checks.filter((check) => check.status === "not-checked").map((c) => c.name),
+		).toEqual(["files", "caps"])
+	})
+
+	it("warns but still completes when the parent does not conform", async () => {
+		// Owner-ruled: forking something slightly broken in order to fix it is
+		// legitimate, so a failing check must not gate the remix — it must be
+		// impossible to miss instead. Dropping the header changes no bytes, so
+		// every digest still matches and the copy still succeeds.
+		noindex = false
+		try {
+			const destDir = path.join(
+				mkdtempSync(path.join(os.tmpdir(), "trove-remix-warn-")),
+				"r",
+			)
+			const { fileCount, report } = await remixTrove({ destDir, troveUrl })
+			// It completed: the remix is not gated on conformance.
+			expect(fileCount).toBe(3)
+			expect(readFileSync(path.join(destDir, "data.csv"), "utf8")).toBe("a,b\n1,2\n")
+			// And it said so loudly enough for the caller to act on.
+			expect(report.ok).toBe(false)
+			const banner = describeNonConformance(troveUrl, report)
+			expect(banner).toContain("DOES NOT CONFORM")
+			expect(banner).toContain("noindex")
+			expect(banner).toContain("trove verify")
+		} finally {
+			noindex = true
+		}
+	})
+
 	it("fetches, verifies, strips identity, and records lineage", async () => {
 		const destDir = path.join(
 			mkdtempSync(path.join(os.tmpdir(), "trove-remix-out-")),

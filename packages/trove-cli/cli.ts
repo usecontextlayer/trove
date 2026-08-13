@@ -8,6 +8,8 @@ import { env } from "@/src/env"
 import { publish } from "@/src/publish"
 import { parseHostUrl, register } from "@/src/register"
 import { parseTroveUrl, remixTrove } from "@/src/remix"
+import { describeNonConformance } from "@/src/report"
+import { verify } from "@/src/verify"
 
 const program = new Command()
 	.name("trove")
@@ -23,6 +25,20 @@ const program = new Command()
 // hand — and reported in one sentence, because a raw validation dump is the
 // kind of CLI output an agent gives up on.
 const portSchema = z.coerce.number().int().min(1024).max(65535)
+
+// Registered FIRST so it is the first command in `--help`. Three separate
+// reading agents, handed a trove URL, hand-rolled verification rather than
+// finding a tool for it — and the population that needs this command is exactly
+// the one that arrives knowing nothing and scans the top of the help output.
+program
+	.command("verify")
+	.description(
+		"Check a live trove against the standard and print all seven verdicts. Read-only: it fetches, it never writes, deploys, or registers anything. Run this on a trove someone sent you BEFORE you trust or build on it — it hashes every file against the manifest AND runs the six checks you cannot hand-roll, including anti-cloaking, which is the one that finds text addressed to your agent that a human reading the page cannot see. Prefer it over fetching and hashing by hand: verification written by hand is easy to write in a way that passes without having verified anything. Exits non-zero if the trove does not conform, so it works as a gate in a script. For a folder you have not published yet, use `trove dev` instead.",
+	)
+	.argument("<trove-url>", "the trove's URL")
+	.action(async (from: string) => {
+		await verify({ troveUrl: parseTroveUrl(env.TROVE_REGISTRY_URL, from) })
+	})
 
 program
 	.command("dev")
@@ -81,11 +97,18 @@ program
 	.argument("[dest]", "destination directory (default: ./trove-remix-<id>)")
 	.action(async (from: string, dest: string | undefined) => {
 		const troveUrl = parseTroveUrl(env.TROVE_REGISTRY_URL, from)
-		const { destDir, fileCount } = await remixTrove({
+		const { destDir, fileCount, report } = await remixTrove({
 			...(dest === undefined ? {} : { destDir: dest }),
 			troveUrl,
 		})
 		console.log(`${fileCount} files verified and copied to ${destDir}`)
+		// A non-conformant parent does not stop the remix — forking something
+		// broken to fix it is legitimate — but it must not go by quietly, because
+		// the failure is the remixer's now and their next publish inherits it.
+		// stderr, so it survives a caller that is capturing stdout for the paths.
+		if (!report.ok) {
+			console.error(describeNonConformance(troveUrl, report))
+		}
 		// The scoped npx form, never a bare `trove` — an agent that got here via
 		// `npx @usecontextlayer/trove remix …` has no `trove` on PATH, and the
 		// obvious improvisation after "command not found" is the unscoped `trove`
