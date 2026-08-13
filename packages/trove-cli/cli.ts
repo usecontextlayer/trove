@@ -2,6 +2,7 @@
 import { existsSync, statSync } from "node:fs"
 import { Command } from "commander"
 import { z } from "zod"
+import { version } from "@/package.json"
 import { dev } from "@/src/dev"
 import { env } from "@/src/env"
 import { publish } from "@/src/publish"
@@ -13,6 +14,10 @@ const program = new Command()
 	.description(
 		"Publish and remix troves — folders of static files served at a URL any agent can fetch, verify, and remix. A trove is served from your own Cloudflare account and has exactly one URL: its own. Publishing is two steps that run separately: `publish` puts the bytes online and they are readable immediately, then `register` claims the trove's id and publishes an independent verdict about it. Neither command runs the other, and reading a trove never involves Trove at all.",
 	)
+	// Imported from the manifest, never retyped — one place a version number
+	// exists. Lowercase -v as well as --version, since commander defaults to -V
+	// and the lowercase one is what gets guessed.
+	.version(version, "-v, --version", "print the version of this CLI")
 
 // Ports are semantic input, so they are coerced by a schema rather than by
 // hand — and reported in one sentence, because a raw validation dump is the
