@@ -8,6 +8,7 @@ import {
 	INDEX_PATH,
 	MANIFEST_PATH,
 	MAX_FILES,
+	MAX_TOTAL_BYTES,
 	mintId,
 	renderMandatedBlock,
 	type TroveReader,
@@ -252,6 +253,47 @@ describe("checkTrove", () => {
 		expect([...readPaths].sort()).toEqual(
 			[AGENTS_MD_PATH, INDEX_PATH, MANIFEST_PATH].sort(),
 		)
+	})
+
+	it("fails the total cap from DECLARED sizes, before fetching the file", async () => {
+		// The total is summed over what the manifest DECLARES, never over bytes
+		// received — a ceiling evaluated after the fetch loop describes work
+		// already done. One oversized declaration is enough to settle the
+		// verdict, and the file behind it is never requested.
+		const id = mintId()
+		const responses = conformantTrove(id)
+		const body = "x"
+		const filePath = "/big.bin"
+		const manifest = JSON.parse(responses[MANIFEST_PATH]?.body ?? "") as {
+			files: unknown[]
+		}
+		manifest.files.push({
+			digest: digestOf(body),
+			mediaType: "application/octet-stream",
+			path: filePath,
+			size: MAX_TOTAL_BYTES + 1,
+		})
+		responses[filePath] = { body, contentType: "application/octet-stream" }
+		const manifestEntry = responses[MANIFEST_PATH]
+		if (!manifestEntry) throw new Error("fixture missing manifest")
+		manifestEntry.body = JSON.stringify(manifest)
+
+		const underlying = memoryReader(responses)
+		const readPaths: string[] = []
+		const { report } = await checkTrove({
+			read: async (path) => {
+				readPaths.push(path)
+				return underlying(path)
+			},
+		})
+		expect(failing(report.checks)).toContain("caps")
+		// Assert the CAUSE, not just the verdict: a manifest the schema rejected
+		// also fails caps, with "no valid manifest", so a bare name check here
+		// would pass on a fixture that never exercised the ceiling at all.
+		expect(report.checks.find((check) => check.name === "caps")?.detail).toContain(
+			"declared bytes exceeds",
+		)
+		expect(readPaths).not.toContain(filePath)
 	})
 
 	it("fails anti-cloaking on hidden text outside the block", async () => {

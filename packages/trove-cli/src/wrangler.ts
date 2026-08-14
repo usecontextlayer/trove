@@ -94,6 +94,24 @@ export function parseDeployOutput(output: string): DeployResult {
 	}
 }
 
+/**
+ * The reference host's per-file ceiling on a TEMPORARY (anonymous) account.
+ * Authenticated accounts get a far larger one, which is why this lives here
+ * rather than in the checker: it is a property of the rail we deploy on and of
+ * which credential state we are in, not a property of a conforming trove. A
+ * checker must not encode it either, and not because it cannot see the answer
+ * here — it could. The same manifest has to earn the same verdict in all three
+ * checker positions, so a rule that depends on whose credentials are present
+ * would make conformance mean three different things. This position is the one
+ * that can answer it, which is why the refusal lives in publish rather than in
+ * the checker publish runs.
+ *
+ * PROVENANCE: Cloudflare's published limits (platform/limits, claim-deployments),
+ * NOT a measurement — no oversized deploy has ever been attempted here. Treat it
+ * as a documented figure and re-measure before tightening anything against it.
+ */
+export const ANONYMOUS_MAX_FILE_BYTES = 5 * 1024 * 1024
+
 export interface DeployOptions {
 	/** Anonymous (--temporary) or the creator's own authenticated account. */
 	anonymous: boolean

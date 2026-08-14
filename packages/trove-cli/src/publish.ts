@@ -8,6 +8,7 @@ import { readRemixMarker } from "@/src/remix"
 import { describeFailures } from "@/src/report"
 import { waitUntilServing } from "@/src/serving"
 import {
+	ANONYMOUS_MAX_FILE_BYTES,
 	deployAssembled,
 	detectCredentialState,
 	writeWranglerConfig,
@@ -130,6 +131,28 @@ export async function publish(options: { folder: string }): Promise<void> {
 	// Announced before deploying: the two modes differ by whether the result is
 	// permanent, and nothing else in the output distinguishes them.
 	const anonymous = (await detectCredentialState()) === "anonymous"
+
+	// A conforming trove can still be undeployable on the zero-signup rail, and
+	// this is the only place that is knowable: §6.1's caps bound a CHECKER's
+	// work, deliberately, so they say nothing about one host's free tier, and by
+	// the time wrangler refuses there is no diagnosis left to give. Refusing here
+	// names the file and both ways out. Anonymous only — an authenticated account
+	// has a far larger ceiling and must not inherit this limit.
+	if (anonymous) {
+		const oversized = (local.manifest?.files ?? []).filter(
+			(file) => file.size > ANONYMOUS_MAX_FILE_BYTES,
+		)
+		if (oversized.length > 0) {
+			const limitMiB = ANONYMOUS_MAX_FILE_BYTES / 1024 / 1024
+			const listed = oversized
+				.map((file) => `  ${file.path} — ${(file.size / 1024 / 1024).toFixed(1)} MiB`)
+				.join("\n")
+			throw new Error(
+				`nothing was published: an anonymous deploy caps each file at ${limitMiB} MiB, and these are over it:\n${listed}\n\nThe trove itself conforms — this is a limit of the zero-signup rail, not of the standard. Either make those files smaller, or run \`wrangler login\` and publish into your own Cloudflare account, where the per-file ceiling is far higher.`,
+			)
+		}
+	}
+
 	console.error(
 		anonymous
 			? "deploying anonymously — a 60-minute preview, deleted unless claimed"

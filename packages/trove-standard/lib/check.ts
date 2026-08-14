@@ -88,9 +88,18 @@ export interface CheckTroveResult {
 	report: ContractCheckReport
 }
 
-// Check 6's caps (§6.1): safely below the reference host's own ceiling, so
-// anything passing can always deploy. Easy to raise later; lowering would
-// break published troves.
+// Check 6's caps (§6.1). They bound the WORK a checker does: the manifest is
+// attacker-chosen at the registry position, so the declared count and total are
+// evaluated BEFORE anything is fetched.
+//
+// They are NOT a deployability promise, and this comment used to say they were
+// — "safely below the reference host's own ceiling, so anything passing can
+// always deploy". Both halves were false. MAX_FILES EQUALS the reference host's
+// anonymous ceiling rather than sitting below it, and that host also caps each
+// FILE, which nothing here tests. Deployability is a property of one host's
+// tier, so it is checked at the deploy boundary where the credential state is
+// known (see the CLI's publish path); conformance is a property of the trove.
+// Encoding a host's tier limit here would host-lock the contract.
 export const MAX_FILES = 1000
 export const MAX_TOTAL_BYTES = 25 * 1024 * 1024
 
