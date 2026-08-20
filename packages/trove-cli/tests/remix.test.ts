@@ -66,6 +66,18 @@ function makeSource(): string {
 	const dir = mkdtempSync(path.join(os.tmpdir(), "trove-remix-origin-"))
 	writeFileSync(path.join(dir, "AGENTS.md"), "# Remixable\n\nRemix me.\n")
 	writeFileSync(path.join(dir, "data.csv"), "a,b\n1,2\n")
+	writeFileSync(
+		path.join(dir, "index.html"),
+		Buffer.concat([
+			Buffer.from(
+				'<!doctype html><html><head><meta charset="iso-8859-1"></head><body><p>caf',
+			),
+			Buffer.from([0xe9]),
+			Buffer.from(" cr"),
+			Buffer.from([0xe8]),
+			Buffer.from("me</p></body></html>"),
+		]),
+	)
 	return dir
 }
 
@@ -143,6 +155,30 @@ describe("remixTrove", () => {
 			parent: troveUrl,
 			parentDigest: `sha256:${createHash("sha256").update(servedManifest).digest("hex")}`,
 		})
+	})
+
+	it("preserves a non-UTF-8 parent page except for clearing its inherited identity", async () => {
+		const destDir = path.join(
+			mkdtempSync(path.join(os.tmpdir(), "trove-remix-latin1-")),
+			"r",
+		)
+		await remixTrove({ destDir, troveUrl })
+
+		const parent = readFileSync(path.join(assembledDir, "index.html"))
+		const inheritedIdentity = Buffer.from(`data-trove="${troveId}"`)
+		const identityStart = parent.indexOf(inheritedIdentity)
+		expect(identityStart).toBeGreaterThanOrEqual(0)
+		const expected = Buffer.concat([
+			parent.subarray(0, identityStart),
+			Buffer.from('data-trove=""'),
+			parent.subarray(identityStart + inheritedIdentity.byteLength),
+		])
+		const remixed = readFileSync(path.join(destDir, "index.html"))
+
+		expect(remixed.equals(expected)).toBe(true)
+		expect(remixed.includes(Buffer.from([0xe9]))).toBe(true)
+		expect(remixed.includes(Buffer.from([0xe8]))).toBe(true)
+		expect(remixed.includes(Buffer.from("�", "utf8"))).toBe(false)
 	})
 
 	it("round-trips: a remixed folder republishes with lineage", async () => {

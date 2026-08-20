@@ -12,7 +12,8 @@ import * as path from "node:path"
 import {
 	bodyCloseOffset,
 	CURRENT_STANDARD,
-	cutRanges,
+	cutByteRanges,
+	htmlParserInput,
 	MANDATED_SCRIPT_SRC,
 	manifestSchema,
 	parseElements,
@@ -82,25 +83,31 @@ function digestOf(content: Buffer): string {
  * page — and its non-greedy `</div>` stop left an orphan closing tag behind
  * whenever the div had a nested one.
  */
-function stripMandatedBlock(html: string): string {
-	const ranges = parseElements(html)
+function stripMandatedBlock(html: Buffer): Buffer {
+	const ranges = parseElements(htmlParserInput(html))
 		.filter(
 			(element) =>
 				(element.tagName === "div" && Object.hasOwn(element.attrs, "data-trove")) ||
 				(element.tagName === "script" && element.attrs.src === MANDATED_SCRIPT_SRC),
 		)
 		.flatMap((element) => (element.source === null ? [] : [element.source]))
-	return cutRanges(html, ranges)
+	return ranges.length === 0 ? html : Buffer.from(cutByteRanges(html, ranges))
 }
 
-function injectBlock(html: string, id: string): string {
-	const block = renderMandatedBlock(id)
+function injectBlock(html: Buffer, id: string): Buffer {
 	const stripped = stripMandatedBlock(html)
-	const bodyClose = bodyCloseOffset(stripped)
-	if (bodyClose === null) {
-		return `${stripped}\n${block}\n`
-	}
-	return `${stripped.slice(0, bodyClose)}${block}\n${stripped.slice(bodyClose)}`
+	const bodyClose = bodyCloseOffset(htmlParserInput(stripped))
+	const offset = bodyClose ?? stripped.byteLength
+	const block = Buffer.from(renderMandatedBlock(id))
+	const insertion =
+		bodyClose === null
+			? Buffer.concat([Buffer.from("\n"), block, Buffer.from("\n")])
+			: Buffer.concat([block, Buffer.from("\n")])
+	return Buffer.concat([
+		stripped.subarray(0, offset),
+		insertion,
+		stripped.subarray(offset),
+	])
 }
 
 function escapeHtml(text: string): string {
@@ -123,8 +130,11 @@ function escapeHtml(text: string): string {
  * republisher's own origin under their own id, so it is escaped.
  */
 function generateIndexHtml(sourceDir: string, id: string): string {
-	const agentsMd = readFileSync(path.join(sourceDir, "AGENTS.md"), "utf8")
-	const title = escapeHtml(agentsMd.match(/^#\s+(.+)$/m)?.[1] ?? "A trove")
+	const agentsMd = readFileSync(path.join(sourceDir, "AGENTS.md"))
+	const heading = isUtf8(agentsMd)
+		? agentsMd.toString("utf8").match(/^#\s+(.+)$/m)?.[1]
+		: undefined
+	const title = escapeHtml(heading ?? "A trove")
 	return `<!doctype html>
 <html lang="en">
 <head>
@@ -224,6 +234,8 @@ export function assembleTrove(options: AssembleOptions): TroveManifest {
 	if (existsSync(destDir) && readdirSync(destDir).length > 0) {
 		throw new Error(`Assembly target ${destDir} is not empty.`)
 	}
+	const sourceIndex = path.join(sourceDir, "index.html")
+	const sourceIndexContent = existsSync(sourceIndex) ? readFileSync(sourceIndex) : null
 
 	mkdirSync(destDir, { recursive: true })
 
@@ -236,21 +248,15 @@ export function assembleTrove(options: AssembleOptions): TroveManifest {
 		copyFileSync(path.join(sourceDir, file), target)
 	}
 
-	const sourceIndex = path.join(sourceDir, "index.html")
 	const destIndex = path.join(destDir, "index.html")
-	if (existsSync(sourceIndex)) {
-		// index.html is the ONE file that round-trips through a JS string —
-		// every other file is copied byte-for-byte. Reading it as "utf8"
-		// replaced each non-UTF-8 byte with U+FFFD, and the manifest digest was
-		// then computed over the mojibake, so an ISO-8859-1 page shipped
-		// corrupted with all seven checks green. latin1 maps one byte to one
-		// code unit in both directions, so any encoding survives; the injected
-		// block is pure ASCII and parse5's offsets stay byte offsets.
-		writeFileSync(
-			destIndex,
-			injectBlock(readFileSync(sourceIndex, "latin1"), id),
-			"latin1",
-		)
+	if (sourceIndexContent !== null) {
+		// index.html is the ONE file that is mutated — every other file is copied
+		// byte-for-byte. Reading it as UTF-8 replaced each non-UTF-8 byte with U+FFFD,
+		// and the manifest then digested the mojibake, so an ISO-8859-1 page shipped
+		// corrupted with all seven checks green. The parser sees a one-code-unit-per-byte
+		// view only to produce offsets; those offsets splice the original Buffer, which
+		// is written without any encoding step.
+		writeFileSync(destIndex, injectBlock(sourceIndexContent, id))
 	} else {
 		writeFileSync(destIndex, generateIndexHtml(sourceDir, id))
 	}

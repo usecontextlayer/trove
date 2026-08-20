@@ -308,10 +308,9 @@ describe("assembleTrove", () => {
 	})
 
 	it("preserves a non-UTF-8 index.html byte for byte, and declares no charset for it", () => {
-		// index.html is the one file that round-trips through a JS string.
-		// Reading it as "utf8" replaced every non-UTF-8 byte with U+FFFD, and
-		// the manifest digest was then computed over the mojibake — so a
-		// corrupted page shipped with all seven checks green.
+		// index.html is the one file that is mutated. Parsing a UTF-8-decoded copy
+		// replaced non-UTF-8 bytes with U+FFFD; parsing a byte-aligned view and
+		// splicing the original Buffer keeps those bytes out of the write path.
 		const dir = mkdtempSync(path.join(os.tmpdir(), "trove-test-latin1-"))
 		writeFileSync(path.join(dir, "AGENTS.md"), AGENTS)
 		// "café crème" in ISO-8859-1: 0xe9 and 0xe8 are not valid UTF-8.
@@ -338,21 +337,20 @@ describe("assembleTrove", () => {
 		expect(entry?.size).toBe(out.byteLength)
 		expect(entry?.digest).toBe(`sha256:${createHash("sha256").update(out).digest("hex")}`)
 
-		// The page keeps publishing — a trove may serve text in any encoding. What
-		// it must NOT get is a charset the bytes contradict: an HTTP charset
-		// outranks <meta charset>, so declaring utf-8 here would corrupt the page
-		// this test exists to keep intact. The creator's own meta tag still rules.
+		// Latin-1 is ASCII-compatible, so the page keeps publishing. What it must NOT
+		// get is a charset the bytes contradict: an HTTP charset outranks <meta
+		// charset>, so declaring utf-8 here would corrupt the page this test exists to
+		// keep intact. The creator's own meta tag still rules.
 		const headers = readFileSync(path.join(dest, "_headers"), "utf8")
 		expect(headers).not.toContain("Content-Type: text/html")
 		expect(headers).toContain("X-Robots-Tag: noindex")
 	})
 
 	it("preserves multi-byte UTF-8 in a creator-authored index.html", () => {
-		// index.html is the one file that round-trips through a JS string, and it
-		// is read and written as latin1 precisely so the trip is byte-preserving.
-		// An em dash is three bytes; a decode/encode pair that is not
-		// length-preserving corrupts them and the digest then describes the
-		// corruption rather than the page.
+		// The parser-only view keeps one code unit per byte, while the actual edit
+		// splices the original Buffer. An em dash is three bytes; decoding the page
+		// before writing would corrupt them and leave the digest describing the
+		// corruption rather than the creator's page.
 		const source = Buffer.from(
 			'<!doctype html>\n<html><head><meta charset="utf-8"></head><body>\n<p>— ünïcodé 😀</p>\n</body>\n</html>\n',
 			"utf8",
@@ -426,5 +424,24 @@ describe("assembleTrove", () => {
 		const html = readFileSync(path.join(dest, "index.html"), "utf8")
 		expect(html).not.toContain("<script>fetch")
 		expect(html).toContain("&lt;script&gt;")
+	})
+
+	it("uses the generic title when AGENTS.md is not UTF-8", () => {
+		const source = mkdtempSync(path.join(os.tmpdir(), "trove-test-title-latin1-"))
+		writeFileSync(
+			path.join(source, "AGENTS.md"),
+			Buffer.concat([
+				Buffer.from("# Caf"),
+				Buffer.from([0xe9]),
+				Buffer.from(" manual\n"),
+			]),
+		)
+		const dest = destDir()
+		assembleTrove({ destDir: dest, id: mintId(), sourceDir: source })
+
+		const html = readFileSync(path.join(dest, "index.html"), "utf8")
+		expect(html).toContain("<title>A trove</title>")
+		expect(html).toContain("<h1>A trove</h1>")
+		expect(html).not.toContain("�")
 	})
 })

@@ -4,7 +4,7 @@ import {
 	matchesMandatedDiv,
 	matchesMandatedScript,
 } from "@/lib/block"
-import { type HtmlElement, isInside, parseElements } from "@/lib/html"
+import { type HtmlElement, htmlParserInput, isInside, parseElements } from "@/lib/html"
 import { isWellFormedId } from "@/lib/id"
 import { manifestSchema, type TroveManifest } from "@/lib/manifest"
 import { AGENTS_MD_PATH, INDEX_PATH, MANIFEST_PATH } from "@/lib/paths"
@@ -309,7 +309,7 @@ export async function checkTrove(options: {
 	} else if (essence(index.response.contentType) !== "text/html") {
 		blockDetail = `GET / served ${index.response.contentType ?? "no content type"}, expected text/html`
 	} else {
-		indexElements = parseElements(new TextDecoder().decode(index.response.bytes))
+		indexElements = parseElements(htmlParserInput(index.response.bytes))
 		const troveDivs = indexElements.filter(
 			(element) =>
 				element.tagName === "div" && Object.hasOwn(element.attrs, "data-trove"),

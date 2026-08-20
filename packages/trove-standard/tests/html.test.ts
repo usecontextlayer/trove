@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest"
-import { bodyCloseOffset, cutRanges, parseElements } from "@/index"
+import { bodyCloseOffset, cutByteRanges, htmlParserInput, parseElements } from "@/index"
 
 // The parsing seam. Every HTML defect this repo has shipped came from lexing
 // markup with string operations, so these tests pin the parser's behaviour on
 // the shapes that broke the hand-rolled versions.
+
+describe("htmlParserInput", () => {
+	it("maps every byte to one same-numbered code unit", () => {
+		const input = Uint8Array.from([0x00, 0x3c, 0x80, 0xe9, 0xff])
+		expect(
+			[...htmlParserInput(input)].map((character) => character.charCodeAt(0)),
+		).toEqual([0x00, 0x3c, 0x80, 0xe9, 0xff])
+	})
+})
 
 describe("parseElements", () => {
 	it("returns elements in source order with verbatim markup", () => {
@@ -96,81 +105,14 @@ describe("bodyCloseOffset", () => {
 	})
 })
 
-describe("cutRanges", () => {
-	it.each([
-		["no ranges", "<p>a</p>", [], "<p>a</p>"],
-		["a range at offset zero", "ABCdef", [{ end: 3, start: 0 }], "def"],
-		["a range ending at EOF", "abcDEF", [{ end: 6, start: 3 }], "abc"],
-		["a zero-length range", "abcdef", [{ end: 3, start: 3 }], "abcdef"],
-		[
-			"the same range twice",
-			"abcDEFghi",
-			[
-				{ end: 6, start: 3 },
-				{ end: 6, start: 3 },
-			],
-			"abcghi",
-		],
-		[
-			"disjoint ranges given out of order",
-			"AAA.BBB.CCC",
-			[
-				{ end: 11, start: 8 },
-				{ end: 3, start: 0 },
-			],
-			".BBB.",
-		],
-		[
-			"overlapping ranges",
-			"0123456789",
-			[
-				{ end: 5, start: 1 },
-				{ end: 8, start: 4 },
-			],
-			"089",
-		],
-		[
-			"a nested range, inner listed first",
-			"012<X<Y>Z>345",
-			[
-				{ end: 8, start: 5 },
-				{ end: 10, start: 3 },
-			],
-			"012345",
-		],
-		[
-			"two ranges sharing a start",
-			"0123456789",
-			[
-				{ end: 3, start: 2 },
-				{ end: 7, start: 2 },
-			],
-			"01789",
-		],
-	])("cuts %s", (_label, html, ranges, expected) => {
-		expect(cutRanges(html, ranges)).toBe(expected)
+describe("cutByteRanges", () => {
+	it("cuts ranges from the original bytes without re-encoding the survivors", () => {
+		const bytes = Uint8Array.from([0xe9, ...Buffer.from("<CUT>\n"), 0x80, 0xff])
+		expect([...cutByteRanges(bytes, [{ end: 6, start: 1 }])]).toEqual([0xe9, 0x80, 0xff])
 	})
 
-	it("never returns more bytes than it was given", () => {
-		const html = "0123456789"
-		const out = cutRanges(html, [
-			{ end: 6, start: 2 },
-			{ end: 4, start: 3 },
-			{ end: 9, start: 5 },
-		])
-		expect(out).toBe("019")
-		expect(out.length).toBeLessThanOrEqual(html.length)
-	})
-
-	it("throws on an inverted range instead of duplicating bytes", () => {
-		// Left unguarded this emitted slice(0, start) and then resumed at
-		// end < start, so a 10-byte input produced 15 bytes.
-		expect(() => cutRanges("0123456789", [{ end: 2, start: 7 }])).toThrow(
-			/inverted source range/,
-		)
-	})
-
-	it("extends a cut over the whitespace that follows it", () => {
-		expect(cutRanges("keep <CUT>\n\nkeep", [{ end: 10, start: 5 }])).toBe("keep keep")
+	it("preserves non-ASCII bytes following a cut", () => {
+		const bytes = Uint8Array.from([...Buffer.from("<CUT>"), 0xa0, 0xa0])
+		expect([...cutByteRanges(bytes, [{ end: 5, start: 0 }])]).toEqual([0xa0, 0xa0])
 	})
 })

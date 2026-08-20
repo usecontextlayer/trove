@@ -19,7 +19,13 @@ export {
 	type TroveReader,
 	type TroveResponse,
 } from "@/lib/check"
-export { bodyCloseOffset, cutRanges, type HtmlElement, parseElements } from "@/lib/html"
+export {
+	bodyCloseOffset,
+	cutByteRanges,
+	type HtmlElement,
+	htmlParserInput,
+	parseElements,
+} from "@/lib/html"
 export {
 	assertWellFormedId,
 	ID_LENGTH,

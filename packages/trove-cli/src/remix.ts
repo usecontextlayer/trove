@@ -4,6 +4,7 @@ import * as path from "node:path"
 import {
 	type ContractCheckReport,
 	checkTrove,
+	htmlParserInput,
 	httpReader,
 	manifestSchema,
 	parseElements,
@@ -38,15 +39,19 @@ export function readRemixMarker(sourceDir: string): RemixMarker | null {
  * exactly as served — publish then strips the remnant block and injects a fresh
  * one.
  */
-function clearInheritedIdentity(html: string): string {
-	const div = parseElements(html).find(
+function clearInheritedIdentity(html: Buffer): Buffer {
+	const div = parseElements(htmlParserInput(html)).find(
 		(element) => element.tagName === "div" && Object.hasOwn(element.attrs, "data-trove"),
 	)
 	const range = div?.source?.attrs["data-trove"]
 	if (range === undefined) {
 		return html
 	}
-	return `${html.slice(0, range.start)}data-trove=""${html.slice(range.end)}`
+	return Buffer.concat([
+		html.subarray(0, range.start),
+		Buffer.from('data-trove=""'),
+		html.subarray(range.end),
+	])
 }
 
 export async function remixTrove(options: {
@@ -129,7 +134,7 @@ export async function remixTrove(options: {
 		mkdirSync(path.dirname(target), { recursive: true })
 		// Inherited identity is stripped at fetch time (§9).
 		if (relative === "index.html") {
-			writeFileSync(target, clearInheritedIdentity(content.toString("utf8")))
+			writeFileSync(target, clearInheritedIdentity(content))
 		} else {
 			writeFileSync(target, content)
 		}

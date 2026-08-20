@@ -26,6 +26,20 @@ type Parse5Node = DefaultTreeAdapterMap["node"]
 type Parse5Element = DefaultTreeAdapterMap["element"]
 type Parse5Text = DefaultTreeAdapterMap["textNode"]
 
+/**
+ * A byte-aligned view used only as parse5 input. Each byte becomes the
+ * same-numbered code unit — the identity map Node calls `latin1` — so parse5's
+ * source offsets are byte offsets. This is not decoded text and must never be
+ * written back to disk.
+ */
+export function htmlParserInput(bytes: Uint8Array): string {
+	const chunks: string[] = []
+	for (let start = 0; start < bytes.byteLength; start += 0x8000) {
+		chunks.push(String.fromCharCode(...bytes.subarray(start, start + 0x8000)))
+	}
+	return chunks.join("")
+}
+
 export interface HtmlElement {
 	/**
 	 * Attribute values, DECODED by the parser: `style="display:&#110;one"`
@@ -39,8 +53,8 @@ export interface HtmlElement {
 	 * fragment). Never null for an element physically present in the source.
 	 *
 	 * `attrs` carries the range of each attribute's whole `name="value"` text,
-	 * so a caller can edit one attribute by splicing the original string —
-	 * leaving every other byte of the author's page exactly as written.
+	 * so a caller can edit one attribute by splicing the original bytes at those
+	 * offsets — leaving every other byte of the author's page exactly as written.
 	 */
 	source: {
 		attrs: Record<string, { end: number; start: number }>
@@ -155,20 +169,12 @@ export function parseElements(html: string): HtmlElement[] {
 	return elements
 }
 
-/**
- * Cut source ranges out of `html`, each extended over the whitespace that
- * follows it. Ranges may overlap or repeat; they are merged.
- *
- * Editing by range rather than by re-serializing a parsed tree is what keeps
- * every byte the author wrote intact. A serializer would rewrite the whole
- * page around the edit — quote style, void tags, entities, tag case, attribute
- * spacing — which is not a change a publishing tool may make silently.
- */
-export function cutRanges(
+/** Validate, extend over following ASCII whitespace, and sort source ranges before cutting. */
+function extendedCutRanges(
 	html: string,
 	ranges: readonly { end: number; start: number }[],
-): string {
-	const extended = ranges
+): { end: number; start: number }[] {
+	return ranges
 		.map(({ end, start }) => {
 			// An inverted range would emit html.slice(0, start) and then resume at
 			// end < start, DUPLICATING the bytes between them — silent corruption
@@ -179,21 +185,36 @@ export function cutRanges(
 				throw new Error(`inverted source range: start ${start} is after end ${end}`)
 			}
 			let stop = end
-			while (stop < html.length && /\s/.test(html.charAt(stop))) {
+			while (stop < html.length && /[ \t\r\n\f]/.test(html.charAt(stop))) {
 				stop += 1
 			}
 			return { end: stop, start }
 		})
 		.sort((a, b) => a.start - b.start)
-	let out = ""
+}
+
+/** Cut parse5 source ranges from the original bytes without decoding or re-encoding them. */
+export function cutByteRanges(
+	bytes: Uint8Array,
+	ranges: readonly { end: number; start: number }[],
+): Uint8Array {
+	const kept: Uint8Array[] = []
 	let cursor = 0
-	for (const range of extended) {
+	for (const range of extendedCutRanges(htmlParserInput(bytes), ranges)) {
 		if (range.start > cursor) {
-			out += html.slice(cursor, range.start)
+			kept.push(bytes.subarray(cursor, range.start))
 		}
 		cursor = Math.max(cursor, range.end)
 	}
-	return out + html.slice(cursor)
+	kept.push(bytes.subarray(cursor))
+
+	const out = new Uint8Array(kept.reduce((size, chunk) => size + chunk.byteLength, 0))
+	let offset = 0
+	for (const chunk of kept) {
+		out.set(chunk, offset)
+		offset += chunk.byteLength
+	}
+	return out
 }
 
 /** Whether `element` lies inside `container`'s source range — used to scope a scan around the mandated block without re-parsing. */
