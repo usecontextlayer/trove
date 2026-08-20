@@ -7,16 +7,16 @@
 			"size": 3192
 		},
 		{
-			"digest": "sha256:f537251428b1a5d72a5666d496aee92c36f7635716eeca9b818c919878cfa6bf",
+			"digest": "sha256:d3472a272b842afcff20a419b6f9bdece7f78ad4d96993468e0a06d9760b39e8",
 			"mediaType": "text/markdown",
 			"path": "/AGENTS.md",
-			"size": 6170
+			"size": 6421
 		},
 		{
-			"digest": "sha256:191558da798fd643514f85b54361bf136339e6952c2862fea7eb3265d91976aa",
+			"digest": "sha256:892bd1c545ca8dfc26c4f15dc74b37c688074f3ec9143250cd43646369433dff",
 			"mediaType": "text/markdown",
 			"path": "/skills/remixing-troves/SKILL.md",
-			"size": 3325
+			"size": 3420
 		},
 		{
 			"digest": "sha256:afc1c38242b4c52ce25614c013fa0543430ee71fb3406d4d0ea5cc0f638fba84",
